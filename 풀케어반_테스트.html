@@ -194,7 +194,11 @@ function hasPrev(name,month,week){
   return S.subs.some(s=>s.data.name===name&&String(s.data.month)===String(pm)&&String(s.data.week)===String(pW));
 }
 async function saveRoster(names){
-  await fsdb.collection("config").doc("roster").set({names});
+  await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo});
+}
+async function saveStudentInfo(name,field,value){
+  S.studentInfo={...S.studentInfo,[name]:{...S.studentInfo[name],[field]:value}};
+  await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo});
 }
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
@@ -428,7 +432,7 @@ async function callClaude(prompt,apiKey){
 let S={
   mode:"student",step:"form",name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
   tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,
-  instTrait:"",instSchool:"",
+  studentInfo:{},
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
   checkMonth:"11",checkWeek:"2"
@@ -450,7 +454,7 @@ function buildStudentForm(){
     <div><div style="font-size:16px;font-weight:700">풀케어반 주간 셀프피드백</div><div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:5px">매주 성실하게 작성할수록 더 정확한 피드백을 받을 수 있어요 :)</div></div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
       <img src="cropped-circle.png" style="height:38px;opacity:.85">
-      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.0 · 2026.05</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.1 · 2026.05</span>
     </div>
   </div>
   <div class="card"><div class="card-head">기본 정보</div>
@@ -490,7 +494,7 @@ function buildInstructor(){
   const apiStatus=S.apiKey?`<span class="dot dot-on"></span><span style="color:#1a7a3a;font-weight:600">입력됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b;font-weight:600">미입력</span> <span style="color:#aeaeb2;font-size:11px">(데이터 확인은 가능)</span>`;
   const apiSection=`<div class="apikey-box"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600;color:#0059b3">🔑 API 키 &nbsp; ${apiStatus}</div><button class="btn-ghost btn-sm" onclick="set({showKey:!S.showKey})">${S.showKey?"닫기":"설정"}</button></div>${S.showKey?`<div style="display:flex;gap:6px;margin-top:9px"><input type="password" id="api-input" value="${esc(S.apiKey)}" placeholder="sk-ant-api03-..."><button class="btn-blue btn-sm" onclick="saveApiKey()" style="white-space:nowrap">저장</button></div>`:""}</div>`;
 
-  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>`<div class="roster-item"><span>${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div>`).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
+  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>{const info=S.studentInfo[n]||{};return`<div class="roster-item" style="flex-direction:column;align-items:stretch;gap:8px;padding:11px 13px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div><div class="g2" style="margin:0"><div><span class="lbl">애니어그램 유형</span><select onchange="saveStudentInfo('${esc(n)}','trait',this.value)">${opt(ENN_OPTIONS,info.trait||"")}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input type="text" value="${esc(info.school||"")}" placeholder="예: 계명대, 경성대" onchange="saveStudentInfo('${esc(n)}','school',this.value)"></div></div></div>`}).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
 
   // 미제출자 카드
   const submittedNames=new Set(S.subs.filter(s=>String(s.data.month)===S.checkMonth&&String(s.data.week)===S.checkWeek).map(s=>s.data.name));
@@ -512,7 +516,6 @@ function buildInstructor(){
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
     detailHTML=`<div>${prevSection}<div class="card"><div class="card-head">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
-    <div class="card"><div class="card-head" style="margin-bottom:11px">🎯 학생 정보 (선생님 입력)</div><div class="g2"><div><span class="lbl">애니어그램 유형</span><select onchange="set({instTrait:this.value})">${opt(ENN_OPTIONS,S.instTrait)}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input id="inst-school-input" type="text" value="${esc(S.instSchool)}" placeholder="예: 계명대, 경성대" oninput="S.instSchool=this.value"></div></div></div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
@@ -527,7 +530,7 @@ function buildInstructor(){
     <div style="display:flex;align-items:center;gap:12px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
         <img src="cropped-circle.png" style="height:38px;opacity:.85">
-        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.0 · 2026.05</span>
+        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.1 · 2026.05</span>
       </div>
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
@@ -556,8 +559,7 @@ async function removeStudent(name){
 async function selectSub(i){
   const item=S.subs[i];if(!item)return;
   const prev=await loadPrev(item.data.name,item.data.month,item.data.week);
-  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false,
-    instTrait:item.data.trait||"",instSchool:item.data.school||""});
+  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false});
 }
 async function delSub(key){
   if(!confirm("이 데이터를 삭제할까요?"))return;
@@ -566,17 +568,16 @@ async function delSub(key){
 }
 function previewPrompt(){
   if(!S.sel)return;
-  const school=document.getElementById("inst-school-input")?.value??S.instSchool;
-  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:S.instTrait,school,prevRecord:S.prevData})});
+  const info=S.studentInfo[S.sel.data.name]||{};
+  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:info.trait||"",school:info.school||"",prevRecord:S.prevData})});
 }
 async function generateFeedback(){
   if(!S.sel)return;if(!S.apiKey.trim()){alert("API 키를 먼저 입력해주세요.");return}
-  const school=document.getElementById("inst-school-input")?.value??S.instSchool;
-  set({generating:true,generated:"",instSchool:school});
+  const info=S.studentInfo[S.sel.data.name]||{};
+  const trait=info.trait||"",school=info.school||"";
+  set({generating:true,generated:""});
   try{
-    const result=await callClaude(buildPrompt({...S.sel.data,trait:S.instTrait,school,prevRecord:S.prevData}),S.apiKey);
-    await fsdb.collection("submissions").doc(S.sel.key).update({trait:S.instTrait,school});
-    S.sel={...S.sel,data:{...S.sel.data,trait:S.instTrait,school}};
+    const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData}),S.apiKey);
     await saveFeedback(S.sel.key,result);
     set({generated:result,generating:false});
   }catch(e){set({generated:"오류: "+e.message,generating:false});}
@@ -595,6 +596,7 @@ async function initApp(){
     // 명단 로드
     const rosterDoc=await fsdb.collection("config").doc("roster").get();
     S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
+    S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
 
     // 제출 데이터 실시간 구독 (학생 제출 시 선생님 화면 자동 갱신)
     fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
