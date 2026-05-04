@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>풀케어반 셀프피드백</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:#f5f5f7;color:#1d1d1f;min-height:100vh;font-size:14px}
+input,select,textarea,button{font-family:inherit;font-size:13px}
+input,select,textarea{width:100%;border:1px solid rgba(0,0,0,.14);border-radius:9px;padding:8px 11px;background:#fff;color:#1d1d1f;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:#0071e3;box-shadow:0 0 0 3px rgba(0,113,227,.1)}
+textarea{resize:vertical;line-height:1.6;min-height:54px}
+button{cursor:pointer;border:none;border-radius:9px;font-weight:500;transition:all .15s}
+.nav{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
+.nav-inner{max-width:720px;margin:0 auto;display:flex;align-items:center;padding:0 16px}
+.nav-tab{padding:14px 20px;background:none;border:none;border-bottom:2px solid transparent;color:#86868b;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:-1px}
+.nav-tab.active{color:#1d1d1f;border-bottom-color:#1d1d1f;font-weight:700}
+.nav-badge{margin-left:auto;font-size:11px;color:#aeaeb2;padding:0 8px}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:16px;padding:18px 20px;margin-bottom:12px;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.card-head{font-size:13px;font-weight:600;color:#1d1d1f;margin-bottom:13px}
+.lbl{display:block;font-size:11px;color:#86868b;margin-bottom:5px;font-weight:500}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+.subj{background:#f5f5f7;border-radius:11px;padding:13px 15px;margin-bottom:10px}
+.subj-title{font-size:13px;font-weight:600;color:#1d1d1f;margin-bottom:11px}
+.btn-primary{background:#1d1d1f;color:#fff;padding:13px 24px;font-size:14px;font-weight:600;width:100%;border-radius:12px;margin-bottom:20px}
+.btn-primary:hover{background:#3a3a3c}
+.btn-primary:disabled{background:#aeaeb2;cursor:not-allowed}
+.btn-blue{background:#0071e3;color:#fff;padding:9px 18px;font-size:12px;font-weight:600;border-radius:9px}
+.btn-blue:hover{background:#0077ed}
+.btn-blue:disabled{background:#aeaeb2;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid rgba(0,0,0,.15);color:#1d1d1f;padding:9px 16px;font-size:12px;border-radius:9px}
+.btn-ghost:hover{background:#f5f5f7}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:7px}
+.tag{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.tag-gray{background:#f0f0f2;color:#6e6e73}
+.tag-blue{background:#e8f0fb;color:#0059b3}
+.tag-orange{background:#fff5e0;color:#c45400}
+.tag-green{background:#e8f9ed;color:#1a7a3a}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
+.dot-on{background:#34c759}.dot-off{background:#ff3b30}
+.err{background:#fff5f5;border:1px solid #fecaca;border-radius:9px;padding:9px 13px;font-size:12px;color:#c0392b;margin-bottom:10px}
+.list-item{border:1px solid rgba(0,0,0,.09);border-radius:12px;padding:13px 16px;margin-bottom:8px;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;transition:box-shadow .12s}
+.list-item:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.list-item.has-fb{border-color:rgba(52,199,89,.3);background:#f9fff9}
+.prev-box{background:#fffdf7;border:1px solid rgba(200,150,0,.25);border-radius:13px;padding:15px 17px;margin-bottom:12px}
+.prev-row{padding:8px 0;border-bottom:1px solid rgba(200,150,0,.15)}
+.prev-row:last-child{border-bottom:none}
+.fb-box{background:#fafafa;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:16px;font-size:13px;line-height:1.9;white-space:pre-wrap;max-height:500px;overflow-y:auto;margin-bottom:12px;color:#1d1d1f}
+.roster-item{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#f5f5f7;border-radius:8px;margin-bottom:5px;font-size:13px}
+.roster-del{background:none;border:none;color:#aeaeb2;font-size:16px;cursor:pointer;padding:0 3px;line-height:1}
+.roster-del:hover{color:#ff3b30}
+.done-wrap{display:flex;align-items:center;justify-content:center;padding:60px 20px}
+.done-card{background:#fff;border-radius:20px;padding:44px 36px;max-width:360px;width:100%;text-align:center;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.nw-table{width:100%;border-collapse:collapse;font-size:12px}
+.nw-table th,.nw-table td{padding:5px 6px;text-align:center}
+.nw-table thead tr{background:#f0f0f2}
+.nw-table thead th{font-weight:600;color:#3a3a3c;font-size:11px}
+.nw-table tbody tr{border-top:1px solid #f0f0f2}
+.nw-table .row-lbl{text-align:left;font-size:11px;color:#6e6e73;font-weight:500;white-space:nowrap}
+.nw-table input,.nw-table textarea{font-size:12px;border-radius:7px;padding:5px 7px}
+.apikey-box{border:1px solid #d0e2f9;border-radius:13px;padding:14px 17px;background:#f0f6ff;margin-bottom:12px}
+.detail-sub{border-left:3px solid #e0e0e0;padding-left:12px;margin-bottom:12px}
+.detail-sub.bio{border-color:#34c759}.detail-sub.chem{border-color:#0071e3}.detail-sub.org{border-color:#a28bfa}.detail-sub.life{border-color:#ff9f0a}
+.prompt-box{background:#f8f8f8;border:1px solid rgba(0,0,0,.08);border-radius:11px;padding:13px;font-size:11px;line-height:1.75;white-space:pre-wrap;max-height:220px;overflow-y:auto;margin-bottom:11px;color:#555}
+.loading-wrap{display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:14px;color:#86868b;font-size:14px}
+.spinner{width:36px;height:36px;border:3px solid #e0e0e0;border-top-color:#0071e3;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading-wrap"><div class="spinner"></div>연결 중...</div></div>
+<script>
+// ── Firebase 초기화 ──
+const firebaseConfig = {
+  apiKey: "AIzaSyD047j9N7bHCJaRLcotssVa5Fd8Xy6Tb5I",
+  authDomain: "vf-wsf.firebaseapp.com",
+  projectId: "vf-wsf",
+  storageBucket: "vf-wsf.firebasestorage.app",
+  messagingSenderId: "214051145847",
+  appId: "1:214051145847:web:95f48d4a75e468269f9e72"
+};
+firebase.initializeApp(firebaseConfig);
+const fsdb = firebase.firestore();
+
+// ── 데이터 상수 ──
+const STUDY_SUBS=["생물","화학","유기"],ALL_SUBS=["생물","화학","유기","생활관리"];
+const SUB_ICON={생물:"🧬",화학:"⚗️",유기:"🔬",생활관리:"🌿"};
+const SUB_CLASS={생물:"bio",화학:"chem",유기:"org",생활관리:"life"};
+const ENN_OPTIONS=[["","유형 선택"],["9w8","9w8 — 평화+추진 (100%)"],["4w3","4w3 — 개성+성취 (100%)"],["8w7","8w7 — 추진+즐거움 (100%)"],["5w6","5w6 — 탐구+불안 (86%)"],["9w1","9w1 — 평화+완벽 (60%)"],["7w8","7w8 — 즐거움+도전 (50%)"],["6w5","6w5 — 안정+회피 (50%)"],["1w9","1w9 — 완벽+평화 (29%)"],["1w2","1w2 — 완벽+도움 (25%)"],["7w6","7w6 — 즐거움+안정 (0%)"],["6w7","6w7"],["8w9","8w9"],["3w2","3w2"]];
+const CURRICULUM={"7":{생물:"필수핵심 기본기 OX 360제(월수금)+캠벨 1회독. 굵은글씨+그림 위주.",화학:"박인규T 1500제 완강·1회독 시작. APS 체득. 시간 재지말고 정확히.",유기:"단원별 전범위 1회독 시작(~아민). 약사랑유기화학+스미스7판 예제."},"8":{생물:"단원별 OX 450제(박선우T Base)+캠벨+꿀벌책 1회독. 써머리OX 병행.",화학:"1500제 완강→2000제 진입. 코드1·2 중심. APS 체화.",유기:"전범위 1회독 진행. 매일 최소 1시간/적정 2시간."},"9":{생물:"중앙대기출 재배치 모의고사 8회+경희대기출 6회분. MDP기출(지식형+자료해석형만).",화학:"박인규T 2000제. 9월까지 완강목표. 실수노트 시작.",유기:"전범위 1회독 완성(~아민). 3일진도 3일복습."},"10":{생물:"기출N적중400제+기본기점검100제. 기출(화)=이론복습, 적중예상(금)=암기위주.",화학:"2000제 완강+기출올인원 시작. 전략단원 설정. 노하우특강 적용.",유기:"단원별 전범위 2회독(6주)+전범위모의(2주). 반응지도 작성."},"11":{생물:"기출N적중400제+매주일요일 전범위모의. 마킹·시간배분 점검.",화학:"기출올인원+전공화학(11월중순). 쉬운계산 매일20~30문제.",유기:"2회독 마무리+전범위모의. 핵심반응 요약본 활용."},"12":{생물:"전범위복습기간. 새문제 자제. 기본기+실수패턴 점검.",화학:"기출올인원 마무리+본고사. 실수/약점/전략노트 리마인드.",유기:"서머리 활용. 맞은문제도 다시풀기. 반응지도 최종정리."}};
+const SCHOOL_INFO={계명:"전공생화학+면역학+레닌저심화. 유기2출제. 기본기만 맞춰도 합격가능. 전공화학필수.",경성:"40문제/45분. 종료전5분 답안지수정불가→10분전 마킹필수. 유기8~9문제. 전공화학필수.",단국:"26학년도 전공화학첫출제. 27학년도부터 GroupC 격상예정. 생물심화다수.",강원:"유기없음(수의대동일). 식/생/분/진 집중. MDP기출 그대로출제.",삼육:"26학년도 난이도급상승(전공생화학/약리학). 50문제/60분 타임어택.",원광:"생물 기본:전공심화:약학전공=2:4:2. MDP기출 그대로. 점군(원광만). 토익조건.",경상:"공학용계산기 필수. 유기1만→시간확보해 화학킬러 공략.",동덕:"유기화학 25문항중 13문항. 유기숙련되면 시간단축.",우석:"26학년도 난이도대폭하향. 동점자: 화학→생물→공인영어.",목포:"생물필기없음(구술면접). 유기2위주 15문제.",조선:"기본기+전공심화+지엽+낯선용어 조합. 계산문제많음.",대가:"기본기위주. MDP기출 그대로. 주관식5문제.",충남:"식/생/분/진 비중높음. 화학난이도상. 유기13~15문제."};
+const ENN_DATA={"9w8":{r:"평화+추진. 100%",c:"주3회 운동 절대유지. 흐름무너지면 즉각대처",a:"운동줄이기"},"4w3":{r:"개성+성취. 100%",c:"본인 학습법 확신강화. 감정기복 자연스럽다고 인정",a:""},"8w7":{r:"추진+즐거움. 100%",c:"추진력 인정. 도전욕구를 학습으로",a:""},"5w6":{r:"탐구+정보불안. 86%",c:"꾸준함+불안다루기 일관반복",a:"컨디션만 반복"},"9w1":{r:"평화+완벽. 60%",c:"명상+불안/조급인식+꾸준함. 주말도 평일처럼 기상고정",a:"자기인식코칭 빠뜨리기"},"7w8":{r:"즐거움+도전. 50%",c:"루틴 안정화가핵심. 한자리고정",a:"회피묵인"},"6w5":{r:"안정+회피. 50%",c:"구체루틴유지. 회피행동인식+보상대체",a:"루틴깨짐 묵인"},"1w9":{r:"완벽+평화. 29%주의",c:"체력관리(운동/수면/식사)적극. 꾸준함이 가장큰성과",a:"자책만다루고 신체영역빠뜨리기"},"1w2":{r:"완벽+도움. 25%주의",c:"결과보다과정을훌륭하게. 명상으로불안컨트롤",a:"식사/체력만 반복"},"7w6":{r:"즐거움+안정. 0%위험",c:"잠을지켜야공부시간도확보. 강한외부규제",a:"진도욕심 부추기기"}};
+
+// ── Firestore 헬퍼 ──
+async function saveSubmission(data){
+  const key=`${data.name}_${data.month}-${data.week}`;
+  await fsdb.collection("submissions").doc(key).set({...data,submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
+}
+async function saveFeedback(key,fb){
+  await fsdb.collection("submissions").doc(key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp()});
+}
+async function loadPrev(name,month,week){
+  const pw=Number(week)-1,pm=pw<1?Number(month)-1:Number(month),pW=pw<1?4:pw;
+  if(pm<7)return null;
+  // 메모리 캐시 우선
+  const cached=S.subs.find(s=>s.data.name===name&&String(s.data.month)===String(pm)&&String(s.data.week)===String(pW));
+  if(cached)return cached.data;
+  const doc=await fsdb.collection("submissions").doc(`${name}_${pm}-${pW}`).get();
+  return doc.exists?doc.data():null;
+}
+function hasPrev(name,month,week){
+  const pw=Number(week)-1,pm=pw<1?Number(month)-1:Number(month),pW=pw<1?4:pw;
+  if(pm<7)return false;
+  return S.subs.some(s=>s.data.name===name&&String(s.data.month)===String(pm)&&String(s.data.week)===String(pW));
+}
+async function saveRoster(names){
+  await fsdb.collection("config").doc("roster").set({names});
+}
+async function delSubmission(key){
+  await fsdb.collection("submissions").doc(key).delete();
+}
+
+// ── 프롬프트 빌더 ──
+function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
+  const e=trait?ENN_DATA[trait]:null;const cur=CURRICULUM[month]||{};const nm=String(Math.min(Number(month)+1,12));
+  const schoolText=school?school.split(/[,，\s]+/).filter(Boolean).map(s=>{const k=Object.keys(SCHOOL_INFO).find(k=>s.includes(k));return k?`${k}: ${SCHOOL_INFO[k]}`:""}).filter(Boolean).join("\n"):"";
+  const subjectBlock=ALL_SUBS.map(s=>{const d=subjects?.[s]||{};return`■ ${s}\n학습내용: ${d.study||"(없음)"}\n잘한점: ${d.good||"(없음)"}\n보완할점: ${d.improve||"(없음)"}`}).join("\n\n");
+  const nextBlock=nw?`[다음주 목표]\n생물 — 단원: ${nw.생물_단원||"-"} | 강의: ${nw.생물_강의||"-"} | 문제: ${nw.생물_문제||"-"}\n화학 — 단원: ${nw.화학_단원||"-"} | 강의: ${nw.화학_강의||"-"} | 문제: ${nw.화학_문제||"-"}\n유기 — 단원: ${nw.유기_단원||"-"} | 강의: ${nw.유기_강의||"-"} | 문제: ${nw.유기_문제||"-"}\n다짐: ${nw.다짐||"(없음)"}`:""
+  let prevBlock="";if(prevRecord?.subjects){const lines=ALL_SUBS.map(s=>prevRecord.subjects[s]?.improve?`${s}: "${prevRecord.subjects[s].improve}"`:"").filter(Boolean);if(lines.length)prevBlock=`\n## 저번주(${prevRecord.month}월 ${prevRecord.week}주차) 보완할점 → 이번주 개선여부 확인\n${lines.join("\n")}\n위 항목들이 이번주에 개선되었는지 피드백에 언급해주세요.\n`}
+  return `[풀케어반 셀프피드백 자동답변 생성 v9]\n\n학생: ${name} | ${month}월 ${week}주차${trait?`\n애니어그램: ${trait} (${e?.r||""})${e?.c?`\n코칭핵심: ${e.c}`:""}${e?.a?`\n피해야할코칭: ${e.a}`:""}`:""}${school?`\n주력학교: ${school}`:""}\n\n${subjectBlock}\n\n${nextBlock}\n\n---\n\n## ${month}월 풀케어반 컨텐츠\n생물: ${cur.생물||""}\n화학: ${cur.화학||""}\n유기: ${cur.유기||""}${CURRICULUM[nm]?`\n\n[${nm}월 예고] 생물: ${CURRICULUM[nm].생물?.split('.')[0]}. 화학: ${CURRICULUM[nm].화학?.split('.')[0]}.`:""}\n${prevBlock}${schoolText?`\n## 주력학교 본고사 특성\n${schoolText}\n`:""}\n## 답변 지시사항\n톤: 칭찬("굿!","굿굿","아주좋습니다","잘했어요") 과목당 2~3회. "꾸준히" 적극. "화이팅!" 마무리.\n구조: "■ 과목명" 헤더(생물→화학→유기→생활관리). 각과목 4~7문장(생활관리 6~9). 잘한점인정→학습내용+시기컨텐츠 기준 진단→보완가이드+구체실행→격려.\n강사님 핵심철학: 기본기→심화→지엽순서. 공부한것은 안틀리고 정답수 쌓기전략. 강의는 보조수단, 책읽기가 압도적으로빠름.\n합격생 코칭: "VF 하위권이어도 합격가능". "유기화학 포기하지마세요. 막판에 갑자기열립니다".\n불합격생 패턴(기본학습법만 반복, 자책만다루고 행동지침없는 위로)은 반드시 피할것.`;
+}
+
+// ── Claude API ──
+async function callClaude(prompt,apiKey){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1800,messages:[{role:"user",content:prompt}]})});
+  const data=await res.json();const text=(data.content||[]).map(b=>b.text||"").join("");if(!text)throw new Error(data.error?.message||"API 오류");return text;
+}
+
+// ── 상태 ──
+let S={
+  mode:"student",step:"form",name:"",month:"11",week:"2",trait:"",school:"",subjects:{},nw:{},formError:"",submitting:false,
+  tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,
+  showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
+  roster:[],showRoster:false,
+  checkMonth:"11",checkWeek:"2"
+};
+const T={rosterInput:""};
+function set(p){Object.assign(S,p);render()}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function opt(arr,val){return arr.map(([v,l])=>`<option value="${esc(v)}"${v===val?" selected":""}>${esc(l)}</option>`).join("")}
+
+// ── 학생 폼 ──
+function buildStudentForm(){
+  if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.</div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
+  const rosOpts=S.roster.length?`<option value="">-- 이름 선택 --</option>`+S.roster.map(n=>`<option value="${esc(n)}"${n===S.name?" selected":""}>${esc(n)}</option>`).join(""):`<option value="">명단을 먼저 등록해주세요 (선생님용)</option>`;
+  const subsHTML=ALL_SUBS.map(s=>{const d=S.subjects[s]||{};return`<div class="subj"><div class="subj-title">${SUB_ICON[s]} ${s}</div>${s!=="생활관리"?`<div style="margin-bottom:9px"><span class="lbl">📖 이번주 학습 내용</span><textarea data-subj="${esc(s)}" data-field="study">${esc(d.study||"")}</textarea></div>`:""}<div class="g2"><div><span class="lbl">✅ 잘한 점</span><textarea data-subj="${esc(s)}" data-field="good">${esc(d.good||"")}</textarea></div><div><span class="lbl">🔧 보완할 점</span><textarea data-subj="${esc(s)}" data-field="improve">${esc(d.improve||"")}</textarea></div></div></div>`}).join("");
+  const nwRows=[["목표 단원","_단원",true],["강의 수","_강의",false],["문제 수","_문제",false]];
+  const nwTable=`<table class="nw-table"><thead><tr><th></th>${STUDY_SUBS.map(s=>`<th>${s}</th>`).join("")}</tr></thead><tbody>${nwRows.map(([lbl,suf,ta])=>`<tr><td class="row-lbl">${lbl}</td>${STUDY_SUBS.map(s=>`<td>${ta?`<textarea data-nw="${s+suf}" style="min-height:38px">${esc(S.nw[s+suf]||"")}</textarea>`:`<input type="text" data-nw="${s+suf}" value="${esc(S.nw[s+suf]||"")}" placeholder="-">`}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  return`<div class="wrap">
+  <div class="card" style="background:linear-gradient(135deg,#1a3a5c,#2a5a8a);color:#fff;border:none;display:flex;justify-content:space-between;align-items:center">
+    <div><div style="font-size:16px;font-weight:700">풀케어반 주간 셀프피드백</div><div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:5px">매주 성실하게 작성할수록 더 정확한 피드백을 받을 수 있어요 :)</div></div>
+    <img src="cropped-circle.png" style="height:38px;opacity:.85;flex-shrink:0">
+  </div>
+  <div class="card"><div class="card-head">기본 정보</div>
+    <div class="g3" style="margin-bottom:10px">
+      <div><span class="lbl">이름</span><select id="name-select" onchange="set({name:this.value})">${rosOpts}</select></div>
+      <div><span class="lbl">월</span><select onchange="set({month:this.value})">${opt(["7","8","9","10","11","12"].map(m=>[m,m+"월"]),S.month)}</select></div>
+      <div><span class="lbl">주차</span><select onchange="set({week:this.value})">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),S.week)}</select></div>
+    </div>
+    <div class="g2">
+      <div><span class="lbl">애니어그램 유형</span><select onchange="set({trait:this.value})">${opt(ENN_OPTIONS,S.trait)}</select></div>
+      <div><span class="lbl">주력 학교 (쉼표 구분)</span><input id="school-input" type="text" value="${esc(S.school)}" placeholder="예: 계명대, 경성대" oninput="T.schoolInput=this.value"></div>
+    </div>
+  </div>
+  <div class="card"><div class="card-head">이번 주 피드백</div>${subsHTML}</div>
+  <div class="card"><div class="card-head">📅 다음 주 목표</div>
+    <div style="overflow-x:auto;margin-bottom:12px">${nwTable}</div>
+    <div><span class="lbl">✨ 새로운 주 다짐 한마디!</span><input id="pledge-input" type="text" value="${esc(S.nw.다짐||"")}" placeholder="예: 기운 내서 한 주 또 채워보자" oninput="T.pledgeInput=this.value"></div>
+  </div>
+  ${S.formError?`<div class="err">${esc(S.formError)}</div>`:""}
+  <button class="btn-primary" onclick="submitForm()" ${S.submitting?"disabled":""}>${S.submitting?"저장 중...":"제출하기"}</button>
+  </div>`;
+}
+
+async function submitForm(){
+  const name=document.getElementById("name-select")?.value||S.name;
+  if(!name){set({formError:"이름을 선택해주세요."});return}
+  const school=document.getElementById("school-input")?.value||S.school;
+  const pledge=document.getElementById("pledge-input")?.value||S.nw.다짐||"";
+  document.querySelectorAll("textarea[data-subj]").forEach(el=>{const s=el.dataset.subj,f=el.dataset.field;if(s&&f)S.subjects={...S.subjects,[s]:{...S.subjects[s],[f]:el.value}}});
+  document.querySelectorAll("[data-nw]").forEach(el=>{const k=el.dataset.nw;if(k)S.nw={...S.nw,[k]:el.value}});
+  S.nw.다짐=pledge;
+  if(!ALL_SUBS.some(s=>S.subjects[s]?.study||S.subjects[s]?.good||S.subjects[s]?.improve)){set({formError:"최소 1개 과목 이상 입력해주세요."});return}
+  set({submitting:true,formError:""});
+  try{
+    await saveSubmission({name,month:S.month,week:S.week,trait:S.trait,school,subjects:S.subjects,nw:S.nw});
+    set({step:"done",name,school,submitting:false});
+  }catch(e){set({formError:"저장 실패: "+e.message,submitting:false});}
+}
+
+// ── 선생님용 ──
+function buildInstructor(){
+  const apiStatus=S.apiKey?`<span class="dot dot-on"></span><span style="color:#1a7a3a;font-weight:600">입력됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b;font-weight:600">미입력</span> <span style="color:#aeaeb2;font-size:11px">(데이터 확인은 가능)</span>`;
+  const apiSection=`<div class="apikey-box"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600;color:#0059b3">🔑 API 키 &nbsp; ${apiStatus}</div><button class="btn-ghost btn-sm" onclick="set({showKey:!S.showKey})">${S.showKey?"닫기":"설정"}</button></div>${S.showKey?`<div style="display:flex;gap:6px;margin-top:9px"><input type="password" id="api-input" value="${esc(S.apiKey)}" placeholder="sk-ant-api03-..."><button class="btn-blue btn-sm" onclick="saveApiKey()" style="white-space:nowrap">저장</button></div>`:""}</div>`;
+
+  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>`<div class="roster-item"><span>${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div>`).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
+
+  // 미제출자 카드
+  const submittedNames=new Set(S.subs.filter(s=>String(s.data.month)===S.checkMonth&&String(s.data.week)===S.checkWeek).map(s=>s.data.name));
+  const notSubmitted=S.roster.filter(n=>!submittedNames.has(n));
+  const submitted=S.roster.filter(n=>submittedNames.has(n));
+  const absentCard=S.roster.length>0?`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">📊 제출 현황</div><div style="display:flex;gap:6px;align-items:center"><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkMonth:this.value})">${["7","8","9","10","11","12"].map(m=>`<option value="${m}"${m===S.checkMonth?" selected":""}>${m}월</option>`).join("")}</select><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkWeek:this.value})">${["1","2","3","4"].map(w=>`<option value="${w}"${w===S.checkWeek?" selected":""}>${w}주</option>`).join("")}</select></div></div><div style="display:flex;gap:8px;margin-bottom:${notSubmitted.length>0?12:0}px"><div style="flex:1;background:#e8f9ed;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a7a3a">${submitted.length}</div><div style="font-size:11px;color:#2e8b57;margin-top:2px">제출 완료</div></div><div style="flex:1;background:${notSubmitted.length>0?"#fff5f5":"#f5f5f7"};border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"}">${notSubmitted.length}</div><div style="font-size:11px;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"};margin-top:2px">미제출</div></div><div style="flex:1;background:#f0f0f2;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#3a3a3c">${S.roster.length}</div><div style="font-size:11px;color:#6e6e73;margin-top:2px">전체</div></div></div>${notSubmitted.length>0?`<div style="background:#fff5f5;border-radius:10px;padding:11px 14px"><div style="font-size:11px;font-weight:600;color:#c0392b;margin-bottom:8px">⚠️ 미제출자 (${notSubmitted.length}명)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${notSubmitted.map(n=>`<span style="background:#fde8e8;color:#c0392b;border-radius:20px;padding:3px 11px;font-size:12px;font-weight:500">${esc(n)}</span>`).join("")}</div></div>`:`<div style="background:#e8f9ed;border-radius:10px;padding:10px 14px;text-align:center;font-size:12px;color:#1a7a3a;font-weight:600">🎉 ${S.checkMonth}월 ${S.checkWeek}주차 전원 제출 완료!</div>`}</div>`:"";
+
+  const tabBar=`<div class="card" style="padding:0 6px"><div style="display:flex;border-bottom:1px solid #f0f0f2"><button class="nav-tab${S.tab==="list"?" active":""}" onclick="set({tab:'list'})">📋 제출 목록 (${S.subs.length}건)</button>${S.sel?`<button class="nav-tab${S.tab==="detail"?" active":""}" onclick="set({tab:'detail'})">💬 ${esc(S.sel.data.name)} ${S.sel.data.month}월 ${S.sel.data.week}주차</button>`:""}</div></div>`;
+
+  let listHTML="";
+  if(S.tab==="list"){
+    if(!S.subs.length)listHTML=`<div class="card" style="text-align:center;padding:44px 20px;color:#aeaeb2;font-size:13px">아직 제출된 데이터가 없어요<br><span style="font-size:11px;margin-top:4px;display:block">학생용 탭에서 제출하면 여기에 자동으로 나타나요</span></div>`;
+    else listHTML=`<div>${S.subs.map((item,i)=>{const d=item.data,hasFb=!!d.generatedFeedback,hp=hasPrev(d.name,d.month,d.week);return`<div class="list-item${hasFb?" has-fb":""}" onclick="selectSub(${i})"><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap"><strong style="font-size:14px">${esc(d.name)}</strong><span class="tag tag-gray">${d.month}월 ${d.week}주차</span>${d.trait?`<span class="tag tag-blue">${esc(d.trait)}</span>`:""}${hp?`<span class="tag tag-orange">📎 저번주 연결</span>`:""}${hasFb?`<span class="tag tag-green">✅ 피드백완료</span>`:""}</div>${d.school?`<div style="font-size:11px;color:#86868b;margin-bottom:3px">🏫 ${esc(d.school)}</div>`:""}<div style="font-size:11px;color:#aeaeb2">${d.submittedAt?.toDate?d.submittedAt.toDate().toLocaleString("ko-KR"):""}</div></div><button onclick="event.stopPropagation();delSub('${esc(item.key)}')" style="background:none;border:none;color:#d1d1d6;font-size:18px;padding:0 4px;cursor:pointer">🗑</button></div>`}).join("")}</div>`;
+  }
+
+  let detailHTML="";
+  if(S.tab==="detail"&&S.sel){
+    const d=S.sel.data,prev=S.prevData;
+    const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
+    const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
+    detailHTML=`<div>${prevSection}<div class="card"><div class="card-head">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
+    ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
+    ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
+    ${!S.generating&&S.generated?`<div class="fb-box">${esc(S.generated)}</div><div style="display:flex;gap:8px"><button onclick="copyFeedback()" style="flex:1;background:${S.copied?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.copied?"✅ 복사됨!":"📋 피드백 복사"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
+    ${!S.generating&&!S.generated?`<div style="text-align:center;padding:32px 20px;color:#aeaeb2;font-size:13px">피드백 생성 버튼을 누르면 자동으로 만들어져요<br><span style="font-size:11px">(API 키 필요)</span></div>`:""}
+    </div><button class="btn-ghost" onclick="set({tab:'list'})" style="width:100%;padding:11px;margin-bottom:24px">← 목록으로 돌아가기</button></div>`;
+  }
+
+  return`<div class="wrap">
+  <div class="card" style="background:linear-gradient(135deg,#1a3a5c,#2a5a8a);color:#fff;border:none;display:flex;justify-content:space-between;align-items:center">
+    <div><div style="font-size:15px;font-weight:700">풀케어반 선생님 대시보드</div><div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:4px">학생 제출 목록 확인 · 피드백 자동 생성</div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="cropped-circle.png" style="height:38px;opacity:.85;flex-shrink:0">
+      <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
+    </div>
+  </div>
+  ${apiSection}${rosterSection}${absentCard}${tabBar}${listHTML}${detailHTML}
+  </div>`;
+}
+
+// ── 액션 ──
+function saveApiKey(){const v=document.getElementById("api-input")?.value||"";localStorage.setItem("_apikey",v);set({apiKey:v,showKey:false})}
+
+async function addStudent(){
+  const n=(document.getElementById("roster-add-input")?.value||T.rosterInput||"").trim();
+  if(!n||S.roster.includes(n))return;
+  const r=[...S.roster,n];
+  await saveRoster(r);
+  set({roster:r});
+  setTimeout(()=>{const el=document.getElementById("roster-add-input");if(el){el.value="";T.rosterInput="";}},0);
+}
+async function removeStudent(name){
+  const r=S.roster.filter(n=>n!==name);
+  await saveRoster(r);
+  set({roster:r});
+}
+
+async function selectSub(i){
+  const item=S.subs[i];if(!item)return;
+  const prev=await loadPrev(item.data.name,item.data.month,item.data.week);
+  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false});
+}
+async function delSub(key){
+  if(!confirm("이 데이터를 삭제할까요?"))return;
+  await delSubmission(key);
+  set({sel:S.sel?.key===key?null:S.sel,tab:S.sel?.key===key?"list":S.tab});
+}
+function previewPrompt(){
+  if(!S.sel)return;
+  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,prevRecord:S.prevData})});
+}
+async function generateFeedback(){
+  if(!S.sel)return;if(!S.apiKey.trim()){alert("API 키를 먼저 입력해주세요.");return}
+  set({generating:true,generated:""});
+  try{
+    const result=await callClaude(buildPrompt({...S.sel.data,prevRecord:S.prevData}),S.apiKey);
+    await saveFeedback(S.sel.key,result);
+    set({generated:result,generating:false});
+  }catch(e){set({generated:"오류: "+e.message,generating:false});}
+}
+function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
+
+// ── 렌더 ──
+function render(){
+  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"?" active":""}" onclick="set({mode:'instructor'})">👨‍🏫 선생님용</button><span class="nav-badge">Firebase 연결됨</span></div></nav>`;
+  document.getElementById("app").innerHTML=nav+(S.mode==="student"?buildStudentForm():buildInstructor());
+}
+
+// ── 초기화 (실시간 리스너) ──
+async function initApp(){
+  try{
+    // 명단 로드
+    const rosterDoc=await fsdb.collection("config").doc("roster").get();
+    S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
+
+    // 제출 데이터 실시간 구독 (학생 제출 시 선생님 화면 자동 갱신)
+    fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
+      S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
+      render();
+    });
+  }catch(e){
+    document.getElementById("app").innerHTML=`<div class="loading-wrap"><div style="font-size:32px">⚠️</div><div>Firebase 연결 실패: ${e.message}</div></div>`;
+  }
+}
+
+initApp();
+</script>
+</body>
+</html>
