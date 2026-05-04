@@ -51,7 +51,7 @@ button{cursor:pointer;border:none;border-radius:9px;font-weight:500;transition:a
 .prev-box{background:#fffdf7;border:1px solid rgba(200,150,0,.25);border-radius:13px;padding:15px 17px;margin-bottom:12px}
 .prev-row{padding:8px 0;border-bottom:1px solid rgba(200,150,0,.15)}
 .prev-row:last-child{border-bottom:none}
-.fb-box{background:#fafafa;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:16px;font-size:13px;line-height:1.9;white-space:pre-wrap;max-height:500px;overflow-y:auto;margin-bottom:12px;color:#1d1d1f}
+.fb-box{background:#fafafa;border:1px solid rgba(0,0,0,.08);border-radius:13px;padding:16px;font-size:13px;line-height:1.9;white-space:pre-wrap;margin-bottom:12px;color:#1d1d1f}
 .roster-item{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#f5f5f7;border-radius:8px;margin-bottom:5px;font-size:13px}
 .roster-del{background:none;border:none;color:#aeaeb2;font-size:16px;cursor:pointer;padding:0 3px;line-height:1}
 .roster-del:hover{color:#ff3b30}
@@ -96,12 +96,12 @@ const ENN_OPTIONS=[["","유형 선택"],["9w8","9w8 — 평화+추진 (100%)"],[
 // ── 27학년도 VF 풀케어반 커리큘럼 (일정표 기준 — 약간의 변동 가능) ──
 const CURRICULUM={
 "7":{
-  생물:"[심화 이론 복습 기간] 퀴즐렛 1,200제 제공. 필수 핵심 생물 기본기 OX 360제 (매주 월·수·금). 기본서 읽기와 병행.",
+  생물:"[심화 이론 복습 기간] 필수 핵심 생물 기본기 OX 360제 (매주 월·수·금). 학습 순서: 캠벨 굵은글씨+그림 위주로 먼저 읽기 → OX 풀기 → 틀린 부분 이론 재확인. 꼼꼼히 외우면서 진도 빼기보다 전범위를 여러 번 빠르게 보는 것이 핵심. 강의는 기본서에서 이미 읽은 내용을 정확히 다시 정리하는 용도로만 활용.",
   화학:"[학습목표1] 박인규T와 동일한 방식으로 문제 접근 체화. 느려도 괜찮음 — 2000제 끝날 때까지 한 번에 정확히 풀기. [학습목표2] 전략단원을 10월까지 구축해야 함 (정답률 80%+ 단원). 이달 타임어택 모의고사 1회+통계 제공.",
   유기:"[학습목표1] 전 단원 1회독 [학습목표2] 암기가 아닌 이해 — 이해하면 자연스럽게 암기됨 [학습목표3] 1회독 후 '모든 단원에서 반응 원리가 동일하다'는 느낌이 들면 성공 [학습목표4] 손으로 메커니즘 반드시 그리기. 약사랑 유기화학(유튜브) 활용."
 },
 "8":{
-  생물:"생물학 단원별 OX 450제 (박선우T Base, 매주 월·수·금). 기본서(캠벨+꿀벌책)와 병행하며 기본 vs 심화 구분 안목 키우기.",
+  생물:"생물학 단원별 OX 450제 (박선우T Base, 매주 월·수·금). 학습 순서: 캠벨 굵은글씨+그림 위주로 먼저 읽기 → OX 풀기 → 이론 재확인. 전범위를 여러 번 빠르게 보는 게 핵심 — 한 번 볼 때 완벽하게 외우려 하지 말 것. 기본서(캠벨+꿀벌책)를 읽은 후 강의로 내용 재정리하는 순서 유지.",
   화학:"이달 타임어택 모의고사 1회+통계 제공. 2000제 진행 중 — 여전히 정확도 우선. APS 체화 계속.",
   유기:"1회독 계속 진행. 손으로 메커니즘 그리는 습관 유지. 매일 최소 1시간 확보."
 },
@@ -131,13 +131,13 @@ const CURRICULUM={
   유기:"전 단원 반응 요약본 빠르게 회독. 시험 전날 핵심반응 최종 확인."
 }};
 const MONTH_CHECKLIST={
-"7":{title:"7월 — 기초 체화 단계",desc:"이달은 '정확히, 느리게'가 정답. 빠른 진도·타임어택은 오히려 독.",
-생물:["퀴즐렛 1,200제 및 VF OX 문제(월·수·금)를 기한 내 풀고 있는가?","캠벨 굵은글씨+그림 위주 읽기(텍스트 전부 읽기X)","문제 풀기 전 기본서 읽는 순서 지키고 있는가?"],
+"7":{title:"7월 — 기초 체화 단계",desc:"화학은 '정확히' 체화가 핵심(타임어택 아직 금지). 생물은 전범위를 여러 번 빠르게 보는 것이 핵심 — 한 번에 완벽히 외우려 하지 말 것.",
+생물:["VF OX 문제(월·수·금)를 기한 내 풀고 있는가?","기본서(캠벨 굵은글씨+그림) 먼저 읽고 → OX 풀고 → 틀린 부분 이론 재확인 순서를 지키고 있는가?","꼼꼼히 외우면서 진도 빼지 않고, 전범위를 여러 번 빠르게 보는 방식으로 학습 중인가?"],
 화학:["박인규T 방식 그대로 문제 접근 체화(APS) 중인가?","시간을 재고 빠르게 푸는 연습은 하지 않는가? (아직은 '정확히'가 핵심)","박인규T 학습법 체크리스트 숙지했는가?"],
 유기:["약사랑유기화학 강의 + 스미스 예제를 병행하고 있는가?","손으로 메커니즘을 직접 그리며 학습하고 있는가?","매일 최소 1시간 유기 확보하고 있는가?"],
 경고:["1500제 건너뛰고 2000제부터 시작 → 즉시 교정","강의만 보고 기본서 안 읽음 → 기본서 병행 지시","유기화학 '어려워서' 거의 안 함 → 매일 최소 1시간 지키도록"]},
 "8":{title:"8월 — 전과목 1회독 완성 + APS 체화 단계",desc:"이달 말까지 1500제 완강+2000제 진입이 정상 페이스. 타임어택 모의 1회 제공.",
-생물:["박선우T Base OX 450제 진도 맞춰 풀고 있는가?","캠벨+꿀벌책 병행 읽기 진행 중인가?","써머리 OX = MDP 선지 변형임을 인지하고 꼼꼼히 보고 있는가?"],
+생물:["박선우T Base OX 450제 진도 맞춰 풀고 있는가?","캠벨(굵은글씨+그림 위주) 먼저 읽고 OX 풀고 이론 재확인 순서를 지키고 있는가?","전범위를 여러 번 빠르게 보는 방식으로 학습 중인가? (한 번에 완벽하게 외우려는 패턴 경계)"],
 화학:["1500제 완강 완료 또는 완강 목표 시점이 명확한가?","2000제 진입했는가? 코드1·2 중심으로 풀고 있는가?","APS(Analyze-Plan-Solve)가 자동으로 나오기 시작하는가?"],
 유기:["전범위 1회독 진행 중인가?","손으로 메커니즘 그리는 습관 유지 중인가?","매일 최소 1시간 유기 확보하고 있는가?"],
 경고:["아직도 1500제 못 끝냈다면 → 8월 내 완강 목표 재설정","2000제를 너무 빠르게만 풀려 한다면 → APS 체화 먼저","생물만 많이 하고 화학·유기 비중이 너무 낮다면 → 균형 조정"]},
@@ -203,6 +203,20 @@ async function saveStudentInfo(name,field,value){
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
 }
+async function updateMW(){
+  const newMonth=document.getElementById("edit-month")?.value;
+  const newWeek=document.getElementById("edit-week")?.value;
+  if(!newMonth||!newWeek||!S.sel)return;
+  const d=S.sel.data;
+  const oldKey=S.sel.key;
+  const newKey=`${d.name}_${newMonth}-${newWeek}`;
+  if(oldKey===newKey){set({editMW:false});return;}
+  try{
+    await fsdb.collection("submissions").doc(newKey).set({...d,month:newMonth,week:newWeek,submittedAt:d.submittedAt||firebase.firestore.FieldValue.serverTimestamp()});
+    await delSubmission(oldKey);
+    set({editMW:false,sel:null,tab:"list"});
+  }catch(e){alert("수정 실패: "+e.message);}
+}
 
 // ── 프롬프트 빌더 ──
 function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
@@ -227,9 +241,9 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 
 ### 핵심 철학 (자연스럽게 녹여 쓸 것)
 - 진도보다 숙련도: "진도보다 중요한 건 쌓이는 공부, 숙련도를 높이는 학습입니다"
-- 생물은 이론 우선: "생물은 문제만 풀면 절대 좋은 점수 얻기 어렵습니다. 기본서(캠벨+꿀벌책)를 여러 번 보면서 이론을 다져야 합니다"
+- 생물은 전범위 여러 번: "생물은 한 번 볼 때 완벽하게 외우려 하면 오히려 독입니다. 캠벨 굵은글씨+그림 위주로 빠르게 전범위를 여러 번 보는 게 훨씬 효율적이에요. 합격생들이 공통으로 강조한 패턴입니다." OX 풀고 틀린 부분만 이론 재확인하는 순서가 핵심.
 - 공부한 건 틀리지 않기: "쉬운 문제에서 미스 나지 않도록, 공부한 건 반드시 맞힌다는 마음으로"
-- 강의는 보조수단: "강의보다 기본서를 직접 읽는 게 훨씬 빠릅니다"
+- 기본서가 주, 강의는 복습 도구: "기본서(캠벨+꿀벌책)를 먼저 읽고 이해한 뒤, 강의는 기본서에서 배운 내용을 정확히 다시 정리하는 용도로 활용하세요. 강의를 먼저 보고 기본서로 보완하는 순서는 역효과입니다."
 - 생활관리 = 운송수단: "생활관리는 목표에 도달하게 해주는 운송수단과 같습니다. 아무리 좋은 학습법도 생활관리가 안 되면 무용지물입니다"
 - VF 하위권도 합격 가능: 수준 자체가 높아서 VF 모의에서 하위권·중위권이어도 실제 시험에서 충분히 합격 가능. 여러 합격생이 실제로 VF 하위권~중위권이었음. 이 점을 불안해하는 학생에게 자주 상기시켜줄 것.
 - 누적복습 강조: "새 진도만큼 이전 내용 누적복습이 합격을 결정합니다"
@@ -277,7 +291,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 2. 정량적 기록: "3시간 공부, 30문제 풀이", "목표 50문제 중 50개 완료" 등 숫자로 관리
 3. 원인 분석: "틀린 이유는 산염기 평형의 시프트 개념을 제대로 이해 못 했기 때문" — 현상이 아닌 원인 파악
 4. 누적복습 병행: 새 진도 + 지난 단원 누적복습을 함께 언급
-5. 기본서 활용: 강의 수강 후 반드시 기본서(캠벨/꿀벌책/스미스)로 해당 내용 확인
+5. 기본서가 주, 강의는 복습 도구: 기본서(캠벨/꿀벌책/스미스)를 먼저 읽고 이해한 후, 강의는 기본서에서 배운 내용을 정확히 다시 정리하는 보조 수단으로 활용. 강의 먼저 → 기본서 보완 순서는 역효과. 26학년도 합격생들 공통: "기본서를 먼저 읽고 강의로 재확인했더니 속도가 훨씬 빨라졌다"
 6. 어려움을 극복 계기로: "화학 테스트 충격받았지만 그 부분을 더 열심히 복습하는 계기가 됐다"
 7. 꾸준한 운동: 실제 합격생 대부분이 주 3회 이상 운동 유지가 합격의 핵심이었다고 밝힘
 8. 맥락 속 이해+암기 조합: 스토리로 이해하고 외우는 방식. 생물 대사과정·메커니즘은 흐름을 이해한 후 암기
@@ -287,7 +301,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 **불합격생들에게서 나타난 위험 신호 — 이런 내용이 보이면 방향을 명확히 잡아주세요:**
 1. 추상적 다짐: "다음주부터 더 열심히 하겠습니다" (구체적 실행 계획 없음)
 2. 진도 집착: 진도는 많이 나갔지만 복습·숙련도 언급 없음
-3. 강의 위주: 기본서 없이 강의만 보는 패턴 (인강 중독 위험)
+3. 강의 위주: 기본서 없이 강의만 보거나, 강의 먼저 보고 기본서로 보완하는 역순 패턴 (기본서 먼저 읽고 강의로 재정리하는 것이 올바른 순서)
 4. 문제 양치기: 이론 없이 문제만 많이 풀겠다는 계획
 5. 자책만 있고 방향 없음: "이번주는 못했습니다" 수준의 반성만 있고 다음 실행 계획 없음
 6. 한 과목 편중: 잘하는 과목만 열심히, 나머지 과목 시간 부족
@@ -370,6 +384,7 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
 - **꿀벌책** (생명:생물의 과학, 라이프사이언스 12판): 캠벨보다 내용 자세하고 전공기초까지 포함. 단, 그림 일부 부정확 → 텍스트 위주로 캠벨 보완용으로 활용.
 - **박선우T** (MD단기): 통합이론 강의. 분량이 방대하여 "다 알아야 한다"는 착각 유발 부작용 있음 → 기본서(캠벨+꿀벌책)와 병행하며 기본 vs 심화 구분 안목을 키우는 것이 핵심. 교재는 본교재(vol1~4) + 써머리(핵심 요약본). 써머리 안의 OX 문제 = MDP 기출 선지 변형 → 반드시 활용. 26학년도 기준 vol1, vol3만 해도 충분했다는 분석. 완벽하게 한 번 읽으려 하면 복습이 늦어짐 → 여러 번 빠르게 회독이 더 효율적.
 - **VF/MDP 문제**: VF=VisionFinder(풀케어반 자체 문제), MDP=MEET+DEET+PEET 기출문제 통칭.
+- **퀴즐렛 1,200제**: MDP 기출 선지 문장을 OX 형식으로 변환한 문제집. 7월 고정 커리큘럼이 아니라, MDP 기출을 풀고 있는 시점에 복습용으로 병행하면 효과 극대화. 기출 선지를 OX로 다시 풀어보면 이론 재확인 + 출제 경향 파악을 동시에 할 수 있음.
 - **MDP 기출 미루지 말 것**: 여러 합격생이 "11월에야 풀었는데 도움이 많이 됐다. 미루지 말고 더 일찍 풀걸" 이라고 공통적으로 언급.
 - **단권화 전략**: 박선우T 써머리 교재를 기준서로 오답노트/추가내용을 모두 거기에 필기 → 시험 직전에는 이 단권화 책만 빠르게 회독.
 - **생물 고득점 핵심**: 범위가 넓어서 복습 방법론이 중요. 외웠다고 넘어가지 말고 O/X, 빈칸 채우기 형식으로 반복 점검.
@@ -432,7 +447,7 @@ async function callClaude(prompt,apiKey){
 let S={
   mode:"student",step:"form",name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
   tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,
-  studentInfo:{},
+  studentInfo:{},editMW:false,
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
   checkMonth:"11",checkWeek:"2"
@@ -444,7 +459,7 @@ function opt(arr,val){return arr.map(([v,l])=>`<option value="${esc(v)}"${v===va
 
 // ── 학생 폼 ──
 function buildStudentForm(){
-  if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.</div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
+  if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.<br><br><span style="font-size:12px;color:#0071e3;line-height:1.9">홍성찬 선생님께서 확인 후 내일 오전 중으로<br>피드백 드릴 예정이니 조금만 기다려주세요 :)</span></div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
   const rosOpts=S.roster.length?`<option value="">-- 이름 선택 --</option>`+S.roster.map(n=>`<option value="${esc(n)}"${n===S.name?" selected":""}>${esc(n)}</option>`).join(""):`<option value="">명단을 먼저 등록해주세요 (선생님용)</option>`;
   const subsHTML=ALL_SUBS.map(s=>{const d=S.subjects[s]||{};return`<div class="subj"><div class="subj-title">${SUB_ICON[s]} ${s}</div>${s!=="생활관리"?`<div style="margin-bottom:9px"><span class="lbl">📖 이번주 학습 내용</span><textarea data-subj="${esc(s)}" data-field="study">${esc(d.study||"")}</textarea></div>`:""}<div class="g2"><div><span class="lbl">✅ 잘한 점</span><textarea data-subj="${esc(s)}" data-field="good">${esc(d.good||"")}</textarea></div><div><span class="lbl">🔧 보완할 점</span><textarea data-subj="${esc(s)}" data-field="improve">${esc(d.improve||"")}</textarea></div></div></div>`}).join("");
   const nwRows=[["목표 단원","_단원",true],["강의 수","_강의",false],["문제 수","_문제",false]];
@@ -454,7 +469,7 @@ function buildStudentForm(){
     <div><div style="font-size:16px;font-weight:700">풀케어반 주간 셀프피드백</div><div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:5px">매주 성실하게 작성할수록 더 정확한 피드백을 받을 수 있어요 :)</div></div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
       <img src="cropped-circle.png" style="height:38px;opacity:.85">
-      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.1 · 2026.05</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.2 · 2026.05</span>
     </div>
   </div>
   <div class="card"><div class="card-head">기본 정보</div>
@@ -515,7 +530,7 @@ function buildInstructor(){
     const d=S.sel.data,prev=S.prevData;
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
-    detailHTML=`<div>${prevSection}<div class="card"><div class="card-head">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
+    detailHTML=`<div>${prevSection}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div><button class="btn-ghost btn-sm" onclick="set({editMW:!S.editMW})">${S.editMW?"취소":"✏️ 월/주차 수정"}</button></div>${S.editMW?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:13px;background:#f5f5f7;border-radius:9px;padding:10px 12px"><span style="font-size:12px;color:#6e6e73;white-space:nowrap">월/주차 변경:</span><select id="edit-month" style="width:auto">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),d.month)}</select><select id="edit-week" style="width:auto">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),d.week)}</select><button class="btn-blue btn-sm" onclick="updateMW()" style="white-space:nowrap">저장</button></div>`:""}<div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
@@ -530,7 +545,7 @@ function buildInstructor(){
     <div style="display:flex;align-items:center;gap:12px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
         <img src="cropped-circle.png" style="height:38px;opacity:.85">
-        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.1 · 2026.05</span>
+        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.2 · 2026.05</span>
       </div>
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
