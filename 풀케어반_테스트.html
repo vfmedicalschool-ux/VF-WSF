@@ -426,8 +426,9 @@ async function callClaude(prompt,apiKey){
 
 // ── 상태 ──
 let S={
-  mode:"student",step:"form",name:"",month:"11",week:"2",trait:"",school:"",subjects:{},nw:{},formError:"",submitting:false,
+  mode:"student",step:"form",name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
   tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,
+  instTrait:"",instSchool:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
   checkMonth:"11",checkWeek:"2"
@@ -458,10 +459,6 @@ function buildStudentForm(){
       <div><span class="lbl">월</span><select onchange="set({month:this.value})">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),S.month)}</select></div>
       <div><span class="lbl">주차</span><select onchange="set({week:this.value})">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),S.week)}</select></div>
     </div>
-    <div class="g2">
-      <div><span class="lbl">애니어그램 유형</span><select onchange="set({trait:this.value})">${opt(ENN_OPTIONS,S.trait)}</select></div>
-      <div><span class="lbl">주력 학교 (쉼표 구분)</span><input id="school-input" type="text" value="${esc(S.school)}" placeholder="예: 계명대, 경성대" oninput="T.schoolInput=this.value"></div>
-    </div>
   </div>
   <div class="card"><div class="card-head">이번 주 피드백</div>${subsHTML}</div>
   <div class="card"><div class="card-head">📅 다음 주 목표</div>
@@ -476,7 +473,6 @@ function buildStudentForm(){
 async function submitForm(){
   const name=document.getElementById("name-select")?.value||S.name;
   if(!name){set({formError:"이름을 선택해주세요."});return}
-  const school=document.getElementById("school-input")?.value||S.school;
   const pledge=document.getElementById("pledge-input")?.value||S.nw.다짐||"";
   document.querySelectorAll("textarea[data-subj]").forEach(el=>{const s=el.dataset.subj,f=el.dataset.field;if(s&&f)S.subjects={...S.subjects,[s]:{...S.subjects[s],[f]:el.value}}});
   document.querySelectorAll("[data-nw]").forEach(el=>{const k=el.dataset.nw;if(k)S.nw={...S.nw,[k]:el.value}});
@@ -484,8 +480,8 @@ async function submitForm(){
   if(!ALL_SUBS.some(s=>S.subjects[s]?.study||S.subjects[s]?.good||S.subjects[s]?.improve)){set({formError:"최소 1개 과목 이상 입력해주세요."});return}
   set({submitting:true,formError:""});
   try{
-    await saveSubmission({name,month:S.month,week:S.week,trait:S.trait,school,subjects:S.subjects,nw:S.nw});
-    set({step:"done",name,school,submitting:false});
+    await saveSubmission({name,month:S.month,week:S.week,subjects:S.subjects,nw:S.nw});
+    set({step:"done",name,submitting:false});
   }catch(e){set({formError:"저장 실패: "+e.message,submitting:false});}
 }
 
@@ -516,6 +512,7 @@ function buildInstructor(){
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
     detailHTML=`<div>${prevSection}<div class="card"><div class="card-head">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
+    <div class="card"><div class="card-head" style="margin-bottom:11px">🎯 학생 정보 (선생님 입력)</div><div class="g2"><div><span class="lbl">애니어그램 유형</span><select onchange="set({instTrait:this.value})">${opt(ENN_OPTIONS,S.instTrait)}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input id="inst-school-input" type="text" value="${esc(S.instSchool)}" placeholder="예: 계명대, 경성대" oninput="S.instSchool=this.value"></div></div></div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
@@ -559,7 +556,8 @@ async function removeStudent(name){
 async function selectSub(i){
   const item=S.subs[i];if(!item)return;
   const prev=await loadPrev(item.data.name,item.data.month,item.data.week);
-  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false});
+  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false,
+    instTrait:item.data.trait||"",instSchool:item.data.school||""});
 }
 async function delSub(key){
   if(!confirm("이 데이터를 삭제할까요?"))return;
@@ -568,13 +566,17 @@ async function delSub(key){
 }
 function previewPrompt(){
   if(!S.sel)return;
-  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,prevRecord:S.prevData})});
+  const school=document.getElementById("inst-school-input")?.value??S.instSchool;
+  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:S.instTrait,school,prevRecord:S.prevData})});
 }
 async function generateFeedback(){
   if(!S.sel)return;if(!S.apiKey.trim()){alert("API 키를 먼저 입력해주세요.");return}
-  set({generating:true,generated:""});
+  const school=document.getElementById("inst-school-input")?.value??S.instSchool;
+  set({generating:true,generated:"",instSchool:school});
   try{
-    const result=await callClaude(buildPrompt({...S.sel.data,prevRecord:S.prevData}),S.apiKey);
+    const result=await callClaude(buildPrompt({...S.sel.data,trait:S.instTrait,school,prevRecord:S.prevData}),S.apiKey);
+    await fsdb.collection("submissions").doc(S.sel.key).update({trait:S.instTrait,school});
+    S.sel={...S.sel,data:{...S.sel.data,trait:S.instTrait,school}};
     await saveFeedback(S.sel.key,result);
     set({generated:result,generating:false});
   }catch(e){set({generated:"오류: "+e.message,generating:false});}
