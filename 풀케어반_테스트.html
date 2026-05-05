@@ -3242,6 +3242,20 @@ function opt(arr,val){return arr.map(([v,l])=>`<option value="${esc(v)}"${v===va
 
 // ── 학생 폼 ──
 function buildStudentForm(){
+  // ── 학생 인증 체크 ──
+  if(!S.user){
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px 20px;text-align:center"><div style="font-size:48px">🎓</div><div style="font-size:18px;font-weight:700;color:#1d1d1f">학생 로그인</div><div style="font-size:13px;color:#86868b;margin-bottom:8px">선생님께 등록된 구글 계정으로 로그인하세요</div><button onclick="studentLogin()" style="padding:12px 28px;font-size:14px;font-weight:600;background:#0071e3;color:#fff;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:8px"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\"><path fill=\"#fff\" d=\"M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z\"/><path fill=\"#fff\" d=\"M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z\"/><path fill=\"#fff\" d=\"M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z\"/><path fill=\"#fff\" d=\"M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z\"/></svg>Google 계정으로 로그인</button></div>`;
+  }
+  const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
+  const isStudentAllowed=S.user.email===TEACHER_EMAIL||allowedEmails.includes(S.user.email);
+  if(!isStudentAllowed){
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px 20px;text-align:center"><div style="font-size:48px">⛔</div><div style="font-size:18px;font-weight:700;color:#1d1d1f">접근 권한 없음</div><div style="font-size:13px;color:#86868b;margin-bottom:4px">${esc(S.user.email)}</div><div style="font-size:12px;color:#86868b;margin-bottom:8px">선생님께 이 이메일 주소 등록을 요청해주세요.</div><button onclick="studentLogout()" style="padding:10px 24px;font-size:13px;font-weight:600;background:#f5f5f7;color:#1d1d1f;border:none;border-radius:10px;cursor:pointer">다른 계정으로 로그인</button></div>`;
+  }
+  // 이메일로 학생 이름 자동 매칭
+  if(S.user.email!==TEACHER_EMAIL&&!S.name){
+    const matched=Object.entries(S.studentInfo).find(([n,info])=>info.email===S.user.email);
+    if(matched)S.name=matched[0];
+  }
   if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.<br><br><span style="font-size:12px;color:#0071e3;line-height:1.9">홍성찬 선생님께서 확인 후 내일 오전 중으로<br>피드백 드릴 예정이니 조금만 기다려주세요 :)</span></div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
   const rosOpts=S.roster.length?`<option value="">-- 이름 선택 --</option>`+S.roster.map(n=>`<option value="${esc(n)}"${n===S.name?" selected":""}>${esc(n)}</option>`).join(""):`<option value="">명단을 먼저 등록해주세요 (선생님용)</option>`;
   const subsHTML=ALL_SUBS.map(s=>{const d=S.subjects[s]||{};const tips=getRandTips(s,S.month,S.week);const tipType=s==='생활관리'&&S.name&&STUDENT_ENNEAGRAM[S.name]?STUDENT_ENNEAGRAM[S.name]:null;const tipTitle=tipType?`💡 같은 에니어그램(${tipType}) 합격생 기록`:`💡 작년 VF 합격생 기록 — ${S.month}월 ${S.week}주차`;const tipLink=s==='생활관리'?`<a href="https://cafe.daum.net/BigPictureTrinity/kSVB" target="_blank" style="font-size:10px;font-weight:600;color:#7b3fa0;text-decoration:none">🧠 애니어그램 유형별 학습법 확인하기</a>`:`<a href="https://cafe.daum.net/BigPictureTrinity/g4MO" target="_blank" style="font-size:10px;font-weight:600;color:#e65100;text-decoration:none">📖 합격생 스펙 + 후기 보러가기</a>`;const tipHTML=tips.length?`<div style="background:#f0f6ff;border:1px solid rgba(0,113,227,.15);border-radius:8px;margin-top:10px;overflow:hidden"><div onclick="toggleTips('${esc(s)}')" style="cursor:pointer;padding:10px 13px;display:flex;align-items:center;justify-content:space-between;user-select:none"><span style="font-size:10px;font-weight:600;color:#0059b3;letter-spacing:.3px">${tipTitle}</span><button onclick="event.stopPropagation();moreTips('${esc(s)}',${S.month},${S.week})" style="margin-left:auto;padding:2px 8px;font-size:10px;font-weight:600;background:#e8f5e9;color:#2e7d32;border:1px solid rgba(46,125,50,.3);border-radius:5px;cursor:pointer;line-height:1.5">🔄 더보기</button><span id="tips-arrow-${esc(s)}" style="font-size:11px;color:#0059b3;margin-left:6px">▶</span></div><div id="tips-box-${esc(s)}" style="display:none;flex-direction:column;gap:7px;padding:0 13px 10px">${tips.map(t=>`<div style="font-size:11px;color:#1a3a6c;line-height:1.8;padding-bottom:7px;border-bottom:1px solid rgba(0,113,227,.1)">${hiliteEnn(t)}</div>`).join("")}<div style="margin-top:8px">${tipLink}</div></div></div>`:""; return`<div class="subj"><div class="subj-title" style="margin-bottom:8px">${SUB_ICON[s]} ${s}</div>${s!=="생활관리"?`<div style="margin-bottom:9px"><span class="lbl">📖 이번주 학습 내용</span><textarea data-subj="${esc(s)}" data-field="study" placeholder="${esc(((WEEK_STUDY_PH[S.month]||{})[S.week]||{})[s]||STUDY_PH[s]||"")}">${esc(d.study||"")}</textarea></div>`:""}<div class="g2" style="margin-bottom:0"><div><span class="lbl">✅ 잘한 점</span><textarea data-subj="${esc(s)}" data-field="good" placeholder="${esc(GOOD_PH[s]||"")}">${esc(d.good||"")}</textarea></div><div><span class="lbl">🔧 보완할 점</span><textarea data-subj="${esc(s)}" data-field="improve" placeholder="${esc(IMPROVE_PH[s]||"")}">${esc(d.improve||"")}</textarea></div></div>${tipHTML}</div>`}).join("");
@@ -3257,7 +3271,7 @@ function buildStudentForm(){
     <div><div style="font-size:16px;font-weight:700">VF 풀케어반 주간 셀프피드백</div><div style="font-size:12px;color:#FFD60A;margin-top:5px">매주 성실하게 작성할수록 더 정확한 피드백을 받을 수 있어요 :)</div></div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
       <img src="cropped-circle.png" style="height:38px;opacity:.85">
-      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v4.1 · 2026.05</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v4.2 · 2026.05</span>
     </div>
   </div>
   <div class="card"><div class="card-head">기본 정보</div>
@@ -3297,7 +3311,7 @@ function buildInstructor(){
   const apiStatus=S.apiKey?`<span class="dot dot-on"></span><span style="color:#1a7a3a;font-weight:600">입력됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b;font-weight:600">미입력</span> <span style="color:#aeaeb2;font-size:11px">(데이터 확인은 가능)</span>`;
   const apiSection=`<div class="apikey-box"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600;color:#0059b3">🔑 API 키 &nbsp; ${apiStatus}</div><button class="btn-ghost btn-sm" onclick="set({showKey:!S.showKey})">${S.showKey?"닫기":"설정"}</button></div>${S.showKey?`<div style="display:flex;gap:6px;margin-top:9px"><input type="password" id="api-input" value="${esc(S.apiKey)}" placeholder="sk-ant-api03-..."><button class="btn-blue btn-sm" onclick="saveApiKey()" style="white-space:nowrap">저장</button></div>`:""}</div>`;
 
-  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>{const info=S.studentInfo[n]||{};return`<div class="roster-item" style="flex-direction:column;align-items:stretch;gap:8px;padding:11px 13px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div><div class="g2" style="margin:0"><div><span class="lbl">애니어그램 유형</span><select onchange="saveStudentInfo('${esc(n)}','trait',this.value)">${opt(ENN_OPTIONS,info.trait||"")}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input type="text" value="${esc(info.school||"")}" placeholder="예: 계명대, 경성대" onchange="saveStudentInfo('${esc(n)}','school',this.value)"></div></div></div>`}).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
+  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>{const info=S.studentInfo[n]||{};return`<div class="roster-item" style="flex-direction:column;align-items:stretch;gap:8px;padding:11px 13px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div><div class="g2" style="margin:0"><div><span class="lbl">애니어그램 유형</span><select onchange="saveStudentInfo('${esc(n)}','trait',this.value)">${opt(ENN_OPTIONS,info.trait||"")}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input type="text" value="${esc(info.school||"")}" placeholder="예: 계명대, 경성대" onchange="saveStudentInfo('${esc(n)}','school',this.value)"></div></div><div style="margin-top:6px"><span class="lbl">구글 이메일</span><input type="email" style="font-size:12px" value="${esc(info.email||"")}" placeholder="예: student@gmail.com" onchange="saveStudentInfo('${esc(n)}','email',this.value)"></div></div>`}).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
 
   // 미제출자 카드
   const submittedNames=new Set(S.subs.filter(s=>String(s.data.month)===S.checkMonth&&String(s.data.week)===S.checkWeek).map(s=>s.data.name));
@@ -3335,7 +3349,7 @@ function buildInstructor(){
     <div style="display:flex;align-items:center;gap:12px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
         <img src="cropped-circle.png" style="height:38px;opacity:.85">
-        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v2.9 · 2026.05</span>
+        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v3.0 · 2026.05</span>
       </div>
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
@@ -3388,6 +3402,10 @@ async function generateFeedback(){
   }catch(e){set({generated:"오류: "+e.message,generating:false});}
 }
 function instructorLogin(){
+  if(location.protocol==='file:'){
+    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
+    return;
+  }
   auth.signInWithPopup(googleProvider).then(result=>{
     const user=result.user;
     if(user.email!==TEACHER_EMAIL){
@@ -3399,6 +3417,22 @@ function instructorLogin(){
 function instructorLogout(){
   auth.signOut().then(()=>set({mode:'student',user:null}));
 }
+function studentLogin(){
+  if(location.protocol==='file:'){
+    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
+    return;
+  }
+  auth.signInWithPopup(googleProvider).then(result=>{
+    const user=result.user;
+    if(user.email===TEACHER_EMAIL){set({});return;}
+    const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
+    if(allowedEmails.includes(user.email)){set({});}
+    else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.');}
+  }).catch(e=>alert('로그인 실패: '+e.message));
+}
+function studentLogout(){
+  auth.signOut().then(()=>set({mode:'student'}));
+}
 auth.onAuthStateChanged(user=>{
   S.user=user;
   render();
@@ -3409,7 +3443,7 @@ function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{se
 // ── 렌더 ──
 function render(){
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
-const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?'set({mode:\'instructor\'})':'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button>${isTeacher?`<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">로그아웃</button>`:""}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
+const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?'set({mode:\'instructor\'})':'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button>${isTeacher?`<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">로그아웃</button>`:(S.user&&!isTeacher)?`<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">🎓 ${S.user.email.split('@')[0]} 로그아웃</button>`:""}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
   if(S.mode==="student"){content=buildStudentForm();}
   else if(S.user&&S.user.email===TEACHER_EMAIL){content=buildInstructor();}
