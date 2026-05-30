@@ -3529,7 +3529,7 @@ auth.onAuthStateChanged(user=>{
   render();
 });
 
-function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
+function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});meout(()=>set({copied:false}),2000)})}
 
 // ── 렌더 ──
 function render(){
@@ -3545,15 +3545,18 @@ const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mod
 // ── 초기화 (실시간 리스너) ──
 async function initApp(){
   try{
-    // 명단 로드
     const rosterDoc=await fsdb.collection("config").doc("roster").get();
     S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
     S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
-
-    // 제출 데이터 실시간 구독 (학생 제출 시 선생님 화면 자동 갱신)
     fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
       S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
       render();
     });
   }catch(e){
-    document.getElementById("app").innerHTML=`<div class="loading-wrap"><div style="font-size:32px">�
+    document.getElementById("app").innerHTML=`<div class="loading-wrap" style="padding:40px;text-align:center"><div style="font-size:32px">⚠️</div><div style="font-size:14px;color:#6e6e73;margin-top:8px">Firebase 연결 오류</div><div style="font-size:11px;color:#aeaeb2;margin-top:6px">${e.message}</div></div>`;
+  }
+}
+initApp();
+</script>
+</body>
+</html>
