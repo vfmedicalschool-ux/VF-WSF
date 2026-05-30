@@ -8,7 +8,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:#f5f5f7;color:#1d1d1f;min-height:100vh;font-size:14px}
@@ -3373,7 +3372,14 @@ function buildInstructor(){
 
 // ── 액션 ──
 function downloadExcel(){
-  if(!window.XLSX){alert('엑셀 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.');return;}
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js';
+    s.onload=()=>downloadExcel();
+    s.onerror=()=>alert('엑셀 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.');
+    document.head.appendChild(s);
+    return;
+  }
   if(!S.subs.length){alert('다운로드할 데이터가 없습니다.');return;}
   const headers=[
     '이름','월','주차','제출일시','애니어그램','주력학교',
