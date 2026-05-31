@@ -3375,17 +3375,6 @@ function buildInstructor(){
 
 // ── 액션 ──
 function downloadExcel(){
-  if(!window.XLSX){
-    const s=document.createElement('script');
-    s.src='https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js';
-    s.onload=()=>_doExcelDownload();
-    s.onerror=()=>alert('라이브러리 로드 실패. 인터넷 연결 확인 후 다시 시도해주세요.');
-    document.head.appendChild(s);
-    return;
-  }
-  _doExcelDownload();
-}
-function _doExcelDownload(){
   if(!S.subs.length){alert('다운로드할 데이터가 없습니다.');return;}
   const headers=['이름','월','주차','제출일시','애니어그램','주력학교',
     '생물_학습내용','생물_잘한점','생물_보완할점',
@@ -3409,15 +3398,14 @@ function _doExcelDownload(){
       nw['유기_단원']||'',nw['유기_강의']||'',nw['유기_문제']||'',
       nw['다짐']||'',d.generatedFeedback||''];
   });
-  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols']=[{wch:8},{wch:4},{wch:4},{wch:18},{wch:10},{wch:16},
-    {wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},
-    {wch:28},{wch:28},{wch:28},{wch:28},{wch:28},
-    {wch:16},{wch:8},{wch:8},{wch:16},{wch:8},{wch:8},{wch:16},{wch:8},{wch:8},
-    {wch:28},{wch:60}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'주간셀프피드백');
-  XLSX.writeFile(wb,'풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const csv=[headers,...rows].map(r=>r.map(esc).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function saveApiKey(){const v=document.getElementById("api-input")?.value||"";localStorage.setItem("_apikey",v);set({apiKey:v,showKey:false})}
@@ -3503,6 +3491,8 @@ function studentLogin(){
 function studentLogout(){
   auth.signOut().then(()=>set({mode:'student'}));
 }
+// Firebase 인증 타임아웃 (3초 안에 안 되면 로그인 화면 표시)
+setTimeout(()=>{if(!S.authReady){S.authReady=true;render();}},3000);
 auth.onAuthStateChanged(user=>{
   S.user=user;
   S.authReady=true;
