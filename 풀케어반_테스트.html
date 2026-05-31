@@ -92,8 +92,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fsdb = firebase.firestore();
 const auth = firebase.auth();
-// 브라우저 닫으면 자동 로그아웃 (세션 모드)
-auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(()=>{});
+// 새 브라우저 세션이면 강제 로그아웃 (이전 계정 정보 초기화)
+if(!sessionStorage.getItem('_vf_active')){
+  auth.signOut().catch(()=>{});
+}
+sessionStorage.setItem('_vf_active','1');
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 const TEACHER_EMAIL = 'vfmedicalschool@gmail.com';
 
