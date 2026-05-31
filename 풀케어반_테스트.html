@@ -3528,6 +3528,61 @@ async function initApp(){
 }
 
 initApp();
+
+function moreTips(subj,month,week){
+  var tips=getRandTips(subj,month,week);
+  var box=document.getElementById('tips-box-'+subj);
+  if(!box)return;
+  // 링크 엘리먼트 보존 (tips-box 하단에 위치)
+  var linkEl=box.querySelector('a');
+  var linkHtml=linkEl?'<div style="margin-top:8px">'+linkEl.outerHTML+'</div>':'';
+  var html=tips.map(function(t){return'<div style="font-size:11px;color:#1a3a6c;line-height:1.8;padding-bottom:7px;border-bottom:1px solid rgba(0,113,227,.1)">'+hiliteEnn(t)+'</div>';}).join('');
+  box.innerHTML=html+linkHtml;
+  // 열린 상태로 전환
+  box.style.display='flex';
+  var arrow=document.getElementById('tips-arrow-'+subj);
+  if(arrow)arrow.textContent='▼';
+}
+function toggleTips(subj){
+  var box=document.getElementById('tips-box-'+subj);
+  var arrow=document.getElementById('tips-arrow-'+subj);
+  if(!box)return;
+  var isOpen=box.style.display==='flex';
+  box.style.display=isOpen?'none':'flex';
+  if(arrow)arrow.textContent=isOpen?'▶':'▼';
+}
+function getRandTips(subj,month,week){
+  var wkey=String(month)+'-'+String(week);
+  var pool;
+  if(subj==='생활관리'){
+    var myType=STUDENT_ENNEAGRAM[S.name]||null;
+    var myPrimary=myType?myType.charAt(0):null;
+    var weekTips=((WINNER_POOL[wkey]||{})['생활관리'])||[];
+    var allTips=WINNER_POOL_ALL['생활관리']||[];
+    if(myPrimary){
+      var filtered=weekTips.filter(function(t){
+        var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
+        var nick=mm?mm[1].trim():'';
+        return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
+      });
+      if(filtered.length>=1){pool=filtered;}
+      else{
+        var allFiltered=allTips.filter(function(t){
+          var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
+          var nick=mm?mm[1].trim():'';
+          return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
+        });
+        pool=allFiltered.length>=1?allFiltered:[];
+      }
+    }else{pool=weekTips;}
+  }else{
+    var wp=((WINNER_POOL[wkey]||{})[subj])||[];
+    pool=wp.length?wp:(WINNER_POOL_ALL[subj]||[]);
+  }
+  var arr=pool.slice();
+  for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;}
+  return arr.slice(0,3);
+}
 </script>
 </body>
 </html>
