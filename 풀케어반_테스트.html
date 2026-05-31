@@ -3339,7 +3339,7 @@ function buildInstructor(){
   let listHTML="";
   if(S.tab==="list"){
     const uniqueNames=[...new Set(S.subs.map(s=>s.data.name))].sort((a,b)=>a.localeCompare(b,"ko"));const filteredSubs=S.filterName?S.subs.filter(s=>s.data.name===S.filterName):S.subs;const sortedSubs=[...filteredSubs].sort((a,b)=>S.sortBy==="name"?a.data.name.localeCompare(b.data.name,"ko"):0);
-    const sortBar=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;color:#aeaeb2">정렬:</span><button class="btn-ghost btn-sm" onclick="set({sortBy:'date',filterName:''})" style="${S.sortBy==='date'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">날짜순</button><button class="btn-ghost btn-sm" onclick="set({sortBy:'name',filterName:''})" style="${S.sortBy==='name'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">이름순</button><span style="font-size:11px;color:#aeaeb2;margin-left:4px">학생:</span><select onchange="set({filterName:this.value})" style="font-size:11px;padding:3px 8px;border:1px solid #d1d1d6;border-radius:5px;background:#fff;color:#1d1d1f;cursor:pointer"><option value="">전체</option>${uniqueNames.map(n=>`<option value="${esc(n)}"${S.filterName===n?' selected':''} >${esc(n)}</option>`).join("")}</select></div>`;
+    const sortBar=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;color:#aeaeb2">정렬:</span><button class="btn-ghost btn-sm" onclick="set({sortBy:'date',filterName:''})" style="${S.sortBy==='date'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">날짜순</button><button class="btn-ghost btn-sm" onclick="set({sortBy:'name',filterName:''})" style="${S.sortBy==='name'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">이름순</button><span style="font-size:11px;color:#aeaeb2;margin-left:4px">학생:</span><select onchange="set({filterName:this.value})" style="font-size:11px;padding:3px 8px;border:1px solid #d1d1d6;border-radius:5px;background:#fff;color:#1d1d1f;cursor:pointer"><option value="">전체</option>${uniqueNames.map(n=>`<option value="${esc(n)}"${S.filterName===n?' selected':''} >${esc(n)}</option>`).join("")}</select><button class="btn-ghost btn-sm" onclick="downloadExcel()" style="margin-left:auto;border:1px solid #34c759;color:#1a7a3a">📊 엑셀 다운로드</button></div>`;
     if(!S.subs.length)listHTML=sortBar+`<div class="card" style="text-align:center;padding:44px 20px;color:#aeaeb2;font-size:13px">아직 제출된 데이터가 없어요<br><span style="font-size:11px;margin-top:4px;display:block">학생용 탭에서 제출하면 여기에 자동으로 나타나요</span></div>`;
     else listHTML=sortBar+`<div>${sortedSubs.map((item,i)=>{const origIdx=S.subs.indexOf(item);const d=item.data,hasFb=!!d.generatedFeedback,hp=hasPrev(d.name,d.month,d.week);return`<div class="list-item${hasFb?" has-fb":""}" onclick="selectSub(${origIdx})"><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap"><strong style="font-size:14px">${esc(d.name)}</strong><span class="tag tag-gray">${d.month}월 ${d.week}주차</span>${d.trait?`<span class="tag tag-blue">${esc(d.trait)}</span>`:""}${hp?`<span class="tag tag-orange">📎 저번주 연결</span>`:""}${hasFb?`<span class="tag tag-green">✅ 피드백완료</span>`:""}</div>${d.school?`<div style="font-size:11px;color:#86868b;margin-bottom:3px">🏫 ${esc(d.school)}</div>`:""}<div style="font-size:11px;color:#aeaeb2">${d.submittedAt?.toDate?d.submittedAt.toDate().toLocaleString("ko-KR"):""}</div></div><button onclick="event.stopPropagation();delSub('${esc(item.key)}')" style="background:none;border:none;color:#d1d1d6;font-size:18px;padding:0 4px;cursor:pointer">🗑</button></div>`}).join("")}</div>`;
   }
@@ -3374,6 +3374,52 @@ function buildInstructor(){
 }
 
 // ── 액션 ──
+function downloadExcel(){
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='https://unpkg.com/xlsx@0.20.3/dist/xlsx.full.min.js';
+    s.onload=()=>_doExcelDownload();
+    s.onerror=()=>alert('라이브러리 로드 실패. 인터넷 연결 확인 후 다시 시도해주세요.');
+    document.head.appendChild(s);
+    return;
+  }
+  _doExcelDownload();
+}
+function _doExcelDownload(){
+  if(!S.subs.length){alert('다운로드할 데이터가 없습니다.');return;}
+  const headers=['이름','월','주차','제출일시','애니어그램','주력학교',
+    '생물_학습내용','생물_잘한점','생물_보완할점',
+    '화학_학습내용','화학_잘한점','화학_보완할점',
+    '유기_학습내용','유기_잘한점','유기_보완할점',
+    '생활관리_잘한점','생활관리_보완할점',
+    '다음주_생물단원','다음주_생물강의','다음주_생물문제',
+    '다음주_화학단원','다음주_화학강의','다음주_화학문제',
+    '다음주_유기단원','다음주_유기강의','다음주_유기문제',
+    '다짐','AI피드백'];
+  const rows=S.subs.map(item=>{
+    const d=item.data,sub=d.subjects||{},nw=d.nw||{};
+    const dt=d.submittedAt&&d.submittedAt.toDate?d.submittedAt.toDate().toLocaleString('ko-KR'):'';
+    return[d.name||'',d.month||'',d.week||'',dt,d.trait||'',d.school||'',
+      (sub['생물']||{}).study||'',(sub['생물']||{}).good||'',(sub['생물']||{}).improve||'',
+      (sub['화학']||{}).study||'',(sub['화학']||{}).good||'',(sub['화학']||{}).improve||'',
+      (sub['유기화학']||sub['유기']||{}).study||'',(sub['유기화학']||sub['유기']||{}).good||'',(sub['유기화학']||sub['유기']||{}).improve||'',
+      (sub['생활관리']||{}).good||'',(sub['생활관리']||{}).improve||'',
+      nw['생물_단원']||'',nw['생물_강의']||'',nw['생물_문제']||'',
+      nw['화학_단원']||'',nw['화학_강의']||'',nw['화학_문제']||'',
+      nw['유기_단원']||'',nw['유기_강의']||'',nw['유기_문제']||'',
+      nw['다짐']||'',d.generatedFeedback||''];
+  });
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[{wch:8},{wch:4},{wch:4},{wch:18},{wch:10},{wch:16},
+    {wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},
+    {wch:28},{wch:28},{wch:28},{wch:28},{wch:28},
+    {wch:16},{wch:8},{wch:8},{wch:16},{wch:8},{wch:8},{wch:16},{wch:8},{wch:8},
+    {wch:28},{wch:60}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'주간셀프피드백');
+  XLSX.writeFile(wb,'풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
 function saveApiKey(){const v=document.getElementById("api-input")?.value||"";localStorage.setItem("_apikey",v);set({apiKey:v,showKey:false})}
 
 async function addStudent(){
