@@ -97,6 +97,7 @@ if(!sessionStorage.getItem('_vf_active')){
   auth.signOut().catch(()=>{});
 }
 sessionStorage.setItem('_vf_active','1');
+// initApp은 아래 onAuthStateChanged에서 호출 (auth 상태 확인 후)
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 const TEACHER_EMAIL = 'vfmedicalschool@gmail.com';
 
@@ -3508,10 +3509,12 @@ function studentLogout(){
 }
 // Firebase 인증 타임아웃 (3초 안에 안 되면 로그인 화면 표시)
 setTimeout(()=>{if(!S.authReady){S.authReady=true;render();}},3000);
+let _appInited=false;
 auth.onAuthStateChanged(user=>{
   S.user=user;
   S.authReady=true;
   render();
+  if(!_appInited){_appInited=true;initApp();}
 });
 
 function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
@@ -3541,8 +3544,6 @@ async function initApp(){
     document.getElementById("app").innerHTML=`<div class="loading-wrap"><div style="font-size:32px">⚠️</div><div>Firebase 연결 실패: ${e.message}</div></div>`;
   }
 }
-
-initApp();
 
 function moreTips(subj,month,week){
   var tips=getRandTips(subj,month,week);
