@@ -3010,6 +3010,10 @@ async function saveStudentInfo(name,field,value){
   S.studentInfo={...S.studentInfo,[name]:{...S.studentInfo[name],[field]:value}};
   await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo});
 }
+async function unlockResubmit(key){
+  if(!confirm("이 주차의 재제출 잠금을 해제할까요? 학생이 1회 더 제출할 수 있게 됩니다."))return;
+  await fsdb.collection("submissions").doc(key).update({resubmitCount:0});
+}
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
 }
@@ -3420,7 +3424,12 @@ function buildStudentForm(){
     String(s.data.month)===String(S.month)&&
     String(s.data.week)===String(S.week)
   );
-  const warnHTML=alreadySubmitted?`<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:14px 16px;margin-bottom:0;display:flex;gap:10px;align-items:flex-start"><div style="font-size:22px">⚠️</div><div><div style="font-size:13px;font-weight:700;color:#856404;margin-bottom:3px">${S.month}월 ${S.week}주차는 이미 제출한 주차예요!</div><div style="font-size:12px;color:#856404;line-height:1.7">계속 작성하면 기존 제출이 덮어씌워져요. 다른 주차를 선택하거나, 수정이 필요하면 계속 작성하세요.</div></div></div>`:'';
+  const existingSubForWarn=alreadySubmitted?S.subs.find(s=>s.data.name===S.name&&String(s.data.month)===String(S.month)&&String(s.data.week)===String(S.week)):null;
+  const resubmitDone=existingSubForWarn&&(existingSubForWarn.data.resubmitCount||0)>=1;
+  const warnHTML=alreadySubmitted?(resubmitDone?
+    `<div style="background:#ffe5e5;border:1px solid #ff3b30;border-radius:12px;padding:14px 16px;margin-bottom:0;display:flex;gap:10px;align-items:flex-start"><div style="font-size:22px">🔒</div><div><div style="font-size:13px;font-weight:700;color:#c0392b;margin-bottom:3px">${S.month}월 ${S.week}주차는 재제출이 완료된 주차예요.</div><div style="font-size:12px;color:#c0392b;line-height:1.7">재제출은 1회만 가능해요. 추가 수정이 필요하면 홍쌤에게 연락해주세요.</div></div></div>`:
+    `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:14px 16px;margin-bottom:0;display:flex;gap:10px;align-items:flex-start"><div style="font-size:22px">⚠️</div><div><div style="font-size:13px;font-weight:700;color:#856404;margin-bottom:3px">${S.month}월 ${S.week}주차는 이미 제출한 주차예요!</div><div style="font-size:12px;color:#856404;line-height:1.7">재제출은 <strong>1회</strong>만 가능해요. 수정이 필요하면 계속 작성하세요.</div></div></div>`
+  ):'';
   const lockHTML=`<div class="card" style="text-align:center;padding:36px 20px;color:#aeaeb2"><div style="font-size:36px;margin-bottom:12px">☝️</div><div style="font-size:14px;font-weight:600;color:#6e6e73;margin-bottom:6px">이름을 먼저 선택해주세요</div><div style="font-size:12px;color:#aeaeb2">이름 선택 후 월·주차를 확인하면 입력란이 열려요</div></div>`;
   const subsHTML=ALL_SUBS.map(s=>{const d=S.subjects[s]||{};const tips=getRandTips(s,S.month,S.week);const tipType=s==='생활관리'&&S.name&&STUDENT_ENNEAGRAM[S.name]?STUDENT_ENNEAGRAM[S.name]:null;const tipTitle=tipType?`💡 같은 에니어그램(${tipType}) 합격생 기록`:`💡 작년 VF 합격생 기록 — ${S.month}월 ${S.week}주차`;const tipLink=s==='생활관리'?`<a href="https://cafe.daum.net/BigPictureTrinity/kSVB" target="_blank" style="font-size:10px;font-weight:600;color:#7b3fa0;text-decoration:none">🧠 애니어그램 유형별 학습법 확인하기</a>`:`<a href="https://cafe.daum.net/BigPictureTrinity/g4MO" target="_blank" style="font-size:10px;font-weight:600;color:#e65100;text-decoration:none">📖 합격생 스펙 + 후기 보러가기</a>`;const tipHTML=tips.length?`<div style="background:#f0f6ff;border:1px solid rgba(0,113,227,.15);border-radius:8px;margin-top:10px;overflow:hidden"><div onclick="toggleTips('${esc(s)}')" style="cursor:pointer;padding:10px 13px;display:flex;align-items:center;justify-content:space-between;user-select:none"><span style="font-size:10px;font-weight:600;color:#0059b3;letter-spacing:.3px">${tipTitle}</span><button onclick="event.stopPropagation();moreTips('${esc(s)}',${S.month},${S.week})" style="margin-left:auto;padding:2px 8px;font-size:10px;font-weight:600;background:#e8f5e9;color:#2e7d32;border:1px solid rgba(46,125,50,.3);border-radius:5px;cursor:pointer;line-height:1.5">🔄 더보기</button><span id="tips-arrow-${esc(s)}" style="font-size:11px;color:#0059b3;margin-left:6px">▶</span></div><div id="tips-box-${esc(s)}" style="display:none;flex-direction:column;gap:7px;padding:0 13px 10px">${tips.map(t=>`<div style="font-size:11px;color:#1a3a6c;line-height:1.8;padding-bottom:7px;border-bottom:1px solid rgba(0,113,227,.1)">${hiliteEnn(t)}</div>`).join("")}<div style="margin-top:8px">${tipLink}</div></div></div>`:""; return`<div class="subj"><div class="subj-title" style="margin-bottom:8px">${SUB_ICON[s]} ${s}</div>${s!=="생활관리"?`<div style="margin-bottom:9px"><span class="lbl">📖 이번주 학습 내용</span><textarea data-subj="${esc(s)}" data-field="study" placeholder="${esc(((WEEK_STUDY_PH[S.month]||{})[S.week]||{})[s]||STUDY_PH[s]||"")}">${esc(d.study||"")}</textarea></div>`:""}<div class="g2" style="margin-bottom:0"><div><span class="lbl">✅ 잘한 점</span><textarea data-subj="${esc(s)}" data-field="good" placeholder="${esc(GOOD_PH[s]||"")}">${esc(d.good||"")}</textarea></div><div><span class="lbl">🔧 보완할 점</span><textarea data-subj="${esc(s)}" data-field="improve" placeholder="${esc(IMPROVE_PH[s]||"")}">${esc(d.improve||"")}</textarea></div></div>${tipHTML}</div>`}).join("");
   const NW_PH={
@@ -3455,7 +3464,7 @@ function buildStudentForm(){
     <div><span class="lbl">✨ 새로운 주 다짐 한마디!</span><input id="pledge-input" type="text" value="${esc(S.nw.다짐||"")}" placeholder="예: 기운 내서 한 주 또 채워보자" oninput="T.pledgeInput=this.value"></div>
   </div>
   ${S.formError?`<div class="err">${esc(S.formError)}</div>`:""}
-  <button class="btn-primary" onclick="submitForm()" ${S.submitting?"disabled":""}>${S.submitting?"저장 중...":"제출하기"}</button>
+  <button class="btn-primary" onclick="submitForm()" ${S.submitting||resubmitDone?"disabled":""}>${S.submitting?"저장 중...":(resubmitDone?"재제출 불가 🔒":"제출하기")}</button>
   </div>`}
   </div>`;
 }
@@ -3495,7 +3504,10 @@ function buildInstructor(){
     const uniqueNames=[...new Set(S.subs.map(s=>s.data.name))].sort((a,b)=>a.localeCompare(b,"ko"));const filteredSubs=S.filterName?S.subs.filter(s=>s.data.name===S.filterName):S.subs;const sortedSubs=[...filteredSubs].sort((a,b)=>S.sortBy==="name"?a.data.name.localeCompare(b.data.name,"ko"):0);
     const sortBar=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;color:#aeaeb2">정렬:</span><button class="btn-ghost btn-sm" onclick="set({sortBy:'date',filterName:''})" style="${S.sortBy==='date'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">날짜순</button><button class="btn-ghost btn-sm" onclick="set({sortBy:'name',filterName:''})" style="${S.sortBy==='name'&&!S.filterName?'background:#1d1d1f;color:#fff;':''}">이름순</button><span style="font-size:11px;color:#aeaeb2;margin-left:4px">학생:</span><select onchange="set({filterName:this.value})" style="font-size:11px;padding:3px 8px;border:1px solid #d1d1d6;border-radius:5px;background:#fff;color:#1d1d1f;cursor:pointer"><option value="">전체</option>${uniqueNames.map(n=>`<option value="${esc(n)}"${S.filterName===n?' selected':''} >${esc(n)}</option>`).join("")}</select><button class="btn-ghost btn-sm" onclick="downloadExcel()" style="margin-left:auto;border:1px solid #34c759;color:#1a7a3a">📊 엑셀 다운로드</button></div>`;
     if(!S.subs.length)listHTML=sortBar+`<div class="card" style="text-align:center;padding:44px 20px;color:#aeaeb2;font-size:13px">아직 제출된 데이터가 없어요<br><span style="font-size:11px;margin-top:4px;display:block">학생용 탭에서 제출하면 여기에 자동으로 나타나요</span></div>`;
-    else listHTML=sortBar+`<div>${sortedSubs.map((item,i)=>{const origIdx=S.subs.indexOf(item);const d=item.data,hasFb=!!d.generatedFeedback,hp=hasPrev(d.name,d.month,d.week);return`<div class="list-item${hasFb?" has-fb":""}" onclick="selectSub(${origIdx})"><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap"><strong style="font-size:14px">${esc(d.name)}</strong><span class="tag tag-gray">${d.month}월 ${d.week}주차</span>${d.trait?`<span class="tag tag-blue">${esc(d.trait)}</span>`:""}${hp?`<span class="tag tag-orange">📎 저번주 연결</span>`:""}${hasFb?`<span class="tag tag-green">✅ 피드백완료</span>`:""}</div>${d.school?`<div style="font-size:11px;color:#86868b;margin-bottom:3px">🏫 ${esc(d.school)}</div>`:""}<div style="font-size:11px;color:#aeaeb2">${d.submittedAt?.toDate?d.submittedAt.toDate().toLocaleString("ko-KR"):""}</div></div><button onclick="event.stopPropagation();delSub('${esc(item.key)}')" style="background:none;border:none;color:#d1d1d6;font-size:18px;padding:0 4px;cursor:pointer">🗑</button></div>`}).join("")}</div>`;
+    else listHTML=sortBar+`<div>${sortedSubs.map((item,i)=>{const origIdx=S.subs.indexOf(item);const d=item.data,hasFb=!!d.generatedFeedback,hp=hasPrev(d.name,d.month,d.week);return`<div class="list-item${hasFb?" has-fb":""}" onclick="selectSub(${origIdx})"><div style="flex:1"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap"><strong style="font-size:14px">${esc(d.name)}</strong><span class="tag tag-gray">${d.month}월 ${d.week}주차</span>${d.trait?`<span class="tag tag-blue">${esc(d.trait)}</span>`:""}${hp?`<span class="tag tag-orange">📎 저번주 연결</span>`:""}${hasFb?`<span class="tag tag-green">✅ 피드백완료</span>`:""}</div>${d.school?`<div style="font-size:11px;color:#86868b;margin-bottom:3px">🏫 ${esc(d.school)}</div>`:""}<div style="font-size:11px;color:#aeaeb2">${d.submittedAt?.toDate?d.submittedAt.toDate().toLocaleString("ko-KR"):""}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+${d.resubmitCount>=1?`<button onclick="event.stopPropagation();unlockResubmit('${esc(item.key)}')" title="재제출 잠금 해제" style="background:none;border:none;color:#ff9500;font-size:16px;padding:0 4px;cursor:pointer">🔓</button>`:""}
+<button onclick="event.stopPropagation();delSub('${esc(item.key)}')" style="background:none;border:none;color:#d1d1d6;font-size:18px;padding:0 4px;cursor:pointer">🗑</button>
+</div></div>`}).join("")}</div>`;
   }
 
   let detailHTML="";
@@ -3572,9 +3584,13 @@ async function addStudent(){
   set({roster:r});
   setTimeout(()=>{const el=document.getElementById("roster-add-input");if(el){el.value="";T.rosterInput="";}},0);
 }
-async function removeStudent(name){
+async async function removeStudent(name){
   const r=S.roster.filter(n=>n!==name);
-  await saveRoster(r);
+  // studentInfo에서도 해당 학생 데이터 삭제
+  const newInfo={...S.studentInfo};
+  delete newInfo[name];
+  S.studentInfo=newInfo;
+  await fsdb.collection("config").doc("roster").set({names:r,studentInfo:newInfo});
   set({roster:r});
 }
 
