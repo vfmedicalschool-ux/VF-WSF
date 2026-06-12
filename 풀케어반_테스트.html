@@ -3584,7 +3584,7 @@ async function addStudent(){
   set({roster:r});
   setTimeout(()=>{const el=document.getElementById("roster-add-input");if(el){el.value="";T.rosterInput="";}},0);
 }
-async async function removeStudent(name){
+async function removeStudent(name){
   const r=S.roster.filter(n=>n!==name);
   // studentInfo에서도 해당 학생 데이터 삭제
   const newInfo={...S.studentInfo};
