@@ -3364,12 +3364,13 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
 - 칭찬은 구체적으로, 보완은 실행 가능한 방향으로
 - 각 과목 데이터가 있는 경우만 작성하세요. 데이터 없는 과목은 생략
 - 교재명·컨텐츠명 정확하게 사용 (캠벨, 꿀벌책, 박선우 써머리, 스미스, 약사랑유기화학, 1500제, 2000제, 기출올인원, APS 등)
-- 마지막 문장은 따뜻하게 마무리 (":)", "화이팅!", "굿!" 등)`;
+- 마지막 문장은 따뜻하게 마무리 (":)", "화이팅!", "굿!" 등)
+${Number(month)<9?"\n⚠️ 피드백 작성 금지어: 현재 "+month+"월로 9월 이전입니다. 피드백 전체에서 \"실수노트\"와 \"약점노트\" 단어를 절대 사용하지 마세요. 이 두 가지 학습 도구는 9월에 정식 도입됩니다.":""}`;
 }
 
 // ── Claude API ──
 async function callClaude(prompt,apiKey){
-  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:3000,messages:[{role:"user",content:prompt}]})});
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:4096,messages:[{role:"user",content:prompt}]})});
   const data=await res.json();const text=(data.content||[]).map(b=>b.text||"").join("");if(!text)throw new Error(data.error?.message||"API 오류");return text;
 }
 
@@ -3472,6 +3473,12 @@ function buildStudentForm(){
 async function submitForm(){
   const name=document.getElementById("name-select")?.value||S.name;
   if(!name){set({formError:"이름을 선택해주세요."});return}
+  // 재제출 잠금 체크 (서버 기준 — disabled 우회 방지)
+  const _key=`${name}_${S.month}-${S.week}`;
+  const _ex=await fsdb.collection("submissions").doc(_key).get();
+  if(_ex.exists&&(_ex.data().resubmitCount||0)>=1){
+    set({formError:"🔒 재제출이 완료된 주차예요. 추가 수정이 필요하면 홍쌤에게 연락해주세요."});return;
+  }
   const pledge=document.getElementById("pledge-input")?.value||S.nw.다짐||"";
   document.querySelectorAll("textarea[data-subj]").forEach(el=>{const s=el.dataset.subj,f=el.dataset.field;if(s&&f)S.subjects={...S.subjects,[s]:{...S.subjects[s],[f]:el.value}}});
   document.querySelectorAll("[data-nw]").forEach(el=>{const k=el.dataset.nw;if(k)S.nw={...S.nw,[k]:el.value}});
