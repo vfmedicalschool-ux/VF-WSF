@@ -3688,9 +3688,9 @@ async function approveFeedback(){
 function render(){
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
   const logoutBtn=isTeacher
-    ?'<button onclick="instructorLogout()" style="padding:5px 12px;font-size:11px;font-weight:600;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;cursor:pointer;white-space:nowrap">로그아웃</button>'
+    ?'<button onclick="instructorLogout()" style="padding:5px 12px;font-size:11px;font-weight:500;background:none;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">로그아웃</button>'
     :S.user
-      ?('<button onclick="studentLogout()" style="padding:5px 12px;font-size:11px;font-weight:600;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;cursor:pointer;white-space:nowrap">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>')
+      ?('<button onclick="studentLogout()" style="padding:5px 12px;font-size:11px;font-weight:500;background:none;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">로그아웃</button>')
       :'';
   const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 갤러리</button><div style="margin-left:auto;display:flex;align-items:center;gap:8px">${logoutBtn}<span class="nav-badge" style="margin-left:0">Firebase 연결됨</span></div></div></nav>`;
   let content;
