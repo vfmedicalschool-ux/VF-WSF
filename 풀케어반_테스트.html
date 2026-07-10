@@ -3438,6 +3438,11 @@ function buildStudentForm(){
   }
   if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.<br><br><span style="font-size:12px;color:#0071e3;line-height:1.9">홍성찬 선생님께서 확인 후 내일 오전 중으로<br>피드백 드릴 예정이니 조금만 기다려주세요 :)</span></div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
   const rosOpts=S.roster.length?`<option value="">-- 이름 선택 --</option>`+S.roster.map(n=>`<option value="${esc(n)}"${n===S.name?" selected":""}>${esc(n)}</option>`).join(""):`<option value="">명단을 먼저 등록해주세요 (선생님용)</option>`;
+  // 이메일로 매칭된 학생은 이름 고정 표시
+  const isEmailMatched=S.user&&S.user.email!==TEACHER_EMAIL&&!!S.name;
+  const nameField=isEmailMatched
+    ?`<div style="padding:9px 11px;background:#f0f6ff;border:1px solid rgba(0,113,227,.15);border-radius:9px;font-size:13px;font-weight:700;color:#1d1d1f">${esc(S.name)} <span style="font-size:11px;font-weight:400;color:#0059b3;margin-left:4px">로그인 계정으로 자동설정</span></div>`
+    :`<select id="name-select" onchange="set({name:this.value})">${rosOpts}</select>`;
   // 이미 제출한 주차인지 확인
   const alreadySubmitted=!!S.name&&S.subs.some(s=>
     s.data.name===S.name&&
@@ -3464,7 +3469,7 @@ function buildStudentForm(){
   </div>
   <div class="card"><div class="card-head">기본 정보</div>
     <div class="g3" style="margin-bottom:10px">
-      <div><span class="lbl">이름</span><select id="name-select" onchange="set({name:this.value})">${rosOpts}</select></div>
+      <div><span class="lbl">이름</span>${nameField}</div>
       <div><span class="lbl">월</span><select onchange="set({month:this.value})">${opt(["7","8","9","10","11","12"].map(m=>[m,m+"월"]),S.month)}</select></div>
       <div><span class="lbl">주차</span><select onchange="set({week:this.value})">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),S.week)}</select></div>
     </div>
