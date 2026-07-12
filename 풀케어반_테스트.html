@@ -126,11 +126,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fsdb = firebase.firestore();
 const auth = firebase.auth();
-// 새 브라우저 세션이면 강제 로그아웃 (이전 계정 정보 초기화)
-if(!sessionStorage.getItem('_vf_active')){
+// 첫 방문 시에만 강제 로그아웃 (localStorage로 영구 보존 — 앱 전환 후 리셋 방지)
+if(!localStorage.getItem('_vf_active')){
   auth.signOut().catch(()=>{});
 }
-sessionStorage.setItem('_vf_active','1');
+localStorage.setItem('_vf_active','1');
 // initApp은 아래 onAuthStateChanged에서 호출 (auth 상태 확인 후)
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 const TEACHER_EMAIL = 'vfmedicalschool@gmail.com';
