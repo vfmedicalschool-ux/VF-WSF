@@ -2997,6 +2997,14 @@ async function saveSubmission(data){
 async function saveFeedback(key,fb){
   await fsdb.collection("submissions").doc(key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp()});
 }
+async function approveFeedback(){
+  const el=document.getElementById('fb-edit-area');
+  const fb=(el?el.value:S.generated).trim();
+  if(!fb||!S.sel?.key)return;
+  await fsdb.collection("submissions").doc(S.sel.key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp(),feedbackApproved:true});
+  set({generated:fb,approved:true});
+  setTimeout(()=>set({approved:false}),3000);
+}
 function prevMonthNum(m){const n=Number(m);return n===1?12:n-1;}
 async function loadPrev(name,month,week){
   const pw=Number(week)-1,pm=pw<1?prevMonthNum(month):Number(month),pW=pw<1?4:pw;
@@ -3376,7 +3384,7 @@ function galCard(s){
     }
     bodyHtml=`<div class="gal-card-body">${inner||'<div style="color:#86868b;font-size:12px;padding:12px 0">내용 없음</div>'}</div>`;
   } else {
-    const fb=data.generatedFeedback||'';
+    const fb=(isTeacher||data.feedbackApproved)?(data.generatedFeedback||''):'';
     bodyHtml=fb
       ?`<div class="gal-card-body"><div class="gal-fb-text">${esc(fb)}</div>${data.feedbackAt?`<div class="gal-fb-at">작성: ${fmtTs(data.feedbackAt)}</div>`:''}</div>`
       :`<div class="gal-card-body"><div style="text-align:center;padding:24px 0;color:#86868b"><div style="font-size:28px;margin-bottom:6px">✏️</div><div style="font-size:12px">아직 피드백이 없어요</div></div></div>`;
@@ -3516,7 +3524,7 @@ function buildInstructor(){
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
-    ${!S.generating&&S.generated?`<div class="fb-box">${esc(S.generated)}</div><div style="display:flex;gap:8px"><button onclick="copyFeedback()" style="flex:1;background:${S.copied?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.copied?"✅ 복사됨!":"📋 피드백 복사"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
+    ${!S.generating&&S.generated?`<textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
     ${!S.generating&&!S.generated?`<div style="text-align:center;padding:32px 20px;color:#aeaeb2;font-size:13px">피드백 생성 버튼을 누르면 자동으로 만들어져요<br><span style="font-size:11px">(API 키 필요)</span></div>`:""}
     </div><button class="btn-ghost" onclick="set({tab:'list'})" style="width:100%;padding:11px;margin-bottom:24px">← 목록으로 돌아가기</button></div>`;
   }
@@ -3609,7 +3617,6 @@ async function generateFeedback(){
   set({generating:true,generated:""});
   try{
     const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData}),S.apiKey);
-    await saveFeedback(S.sel.key,result);
     set({generated:result,generating:false});
   }catch(e){set({generated:"오류: "+e.message,generating:false});}
 }
@@ -3669,7 +3676,7 @@ function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{se
 // ── 렌더 ──
 function render(){
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
-  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 갤러리</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
+  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
   if(S.mode==="gallery"&&S.user){content=buildGallery();}
   else if(S.mode==="student"){content=buildStudentForm();}
