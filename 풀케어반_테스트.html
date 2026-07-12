@@ -3003,6 +3003,7 @@ async function approveFeedback(){
   if(!fb||!S.sel?.key)return;
   await fsdb.collection("submissions").doc(S.sel.key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp(),feedbackApproved:true});
   set({generated:fb,approved:true});
+  try{localStorage.removeItem('_vf_draft');}catch(e){}
   setTimeout(()=>set({approved:false}),3000);
 }
 function prevMonthNum(m){const n=Number(m);return n===1?12:n-1;}
@@ -3308,7 +3309,7 @@ async function callClaude(prompt,apiKey){
 // ── 상태 ──
 let S={
   mode:"student",step:"form",user:null,authReady:false,name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
-  tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},
+  tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},
   studentInfo:{},editMW:false,sortBy:"date",filterName:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
@@ -3332,7 +3333,7 @@ function buildGallery(){
     .sort((a,b)=>(a.data.name||'').localeCompare(b.data.name||'','ko'));
   const monthOpts=months.map(m=>`<option value="${m}" ${S.galMonth==m?'selected':''}>${m}월</option>`).join('');
   const weekOpts=[1,2,3,4,5].map(w=>`<option value="${w}" ${S.galWeek==w?'selected':''}>${w}주차</option>`).join('');
-  const nameOpts='<option value="">전체 학생</option>'+allNames.map(n=>`<option value="${n}" ${S.galStudent===n?'selected':''}>${n}${STUDENT_ENNEAGRAM[n]?' ('+STUDENT_ENNEAGRAM[n]+')':''}</option>`).join('');
+  const nameOpts='<option value="">전체 학생</option>'+allNames.map(n=>`<option value="${n}" ${S.galStudent===n?'selected':''}>${n}${S.studentInfo[n]?.trait?' ('+S.studentInfo[n].trait+')':''}</option>`).join('');
   const cards=items.length===0
     ?`<div class="gal-empty"><div style="font-size:40px;margin-bottom:10px">📭</div><div style="font-weight:700;margin-bottom:4px">${S.galMonth}월 ${S.galWeek}주차 제출 내역이 없어요</div><div style="font-size:13px;color:#86868b">다른 주차를 선택해보세요</div></div>`
     :items.map(s=>galCard(s)).join('');
@@ -3361,6 +3362,7 @@ function galCard(s){
   const esc=v=>v?String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
 
   let bodyHtml='';
+  let cardBodyHtml='';
   if(tab==='sub'){
     let inner='';
     ALL_SUBS_G.forEach(sub=>{
@@ -3391,22 +3393,56 @@ function galCard(s){
       :`<div class="gal-card-body"><div style="text-align:center;padding:24px 0;color:#86868b"><div style="font-size:28px;margin-bottom:6px">✏️</div><div style="font-size:12px">아직 피드백이 없어요</div></div></div>`;
   }
 
+  const isExpanded=!!S.galCardExpanded[key];
+  if(isExpanded){
+    cardBodyHtml=bodyHtml;
+  }else{
+    cardBodyHtml='<div style="padding:10px 16px 14px">'
+      +'<button onclick="galToggleExpand(\''+key+'\')"'
+      +' style="width:100%;padding:8px;font-size:13px;font-weight:600;'
+      +'color:#0071e3;background:#f0f6ff;border:1.5px solid #cce0ff;'
+      +'border-radius:10px;cursor:pointer">내용 보기 ▾</button></div>';
+  }
   return`<div class="gal-card">
     <div class="gal-card-head">
       <div class="gal-avatar" style="background:${color}">${esc(name[0]||'?')}</div>
-      <div><div class="gal-name">${esc(name)}${STUDENT_ENNEAGRAM[name]?`<span style="font-size:11px;font-weight:500;color:#86868b;margin-left:4px">(${STUDENT_ENNEAGRAM[name]})</span>`:''}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
+      <div><div class="gal-name">${esc(name)}${(S.studentInfo[name]?.trait)?`<span style="font-size:11px;font-weight:500;color:#86868b;margin-left:4px">(${S.studentInfo[name].trait})</span>`:''} ${data.stamp?'<span style="font-size:16px;margin-left:4px" title="참 잘했어요!">🌟</span>':''}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
+      ${isTeacher&&data.feedbackApproved?`<button onclick="toggleStamp('${key}')" style="border:none;background:${data.stamp?'#ffd60a':'#f5f5f7'};color:${data.stamp?'#1d1d1f':'#86868b'};font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;margin-right:6px;transition:all .2s" title="${data.stamp?'스탬프 제거':'참 잘했어요! 스탬프 추가'}">${data.stamp?'🌟 취소':'🌟 참 잘했어요!'}</button>`:''}
       <div class="gal-week-badge">${data.month}월 ${data.week}주차</div>
     </div>
     <div class="gal-tabs">
       <button class="gal-tab${tab==='sub'?' gal-tab-active':''}" onclick="galSetTab('${key}','sub')">📝 제출 내용</button>
       <button class="gal-tab${tab==='fb'?' gal-tab-active':''}" onclick="galSetTab('${key}','fb')">💬 홍쌤 피드백${data.feedbackApproved?'<span style="margin-left:4px;background:#34c759;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle">NEW</span>':''}</button>
     </div>
-    ${bodyHtml}
+    ${cardBodyHtml}
   </div>`;
 }
-function galSetTab(key,tab){S.galCardTabs={...S.galCardTabs,[key]:tab};render();}
+function galSetTab(key,tab){S.galCardTabs={...S.galCardTabs,[key]:tab};S.galCardExpanded={...S.galCardExpanded,[key]:true};render();}
+function galToggleExpand(key){S.galCardExpanded={...S.galCardExpanded,[key]:!S.galCardExpanded[key]};render();}
+async function toggleStamp(key){
+  const sub=S.subs.find(s=>s.key===key);
+  if(!sub)return;
+  const newVal=!sub.data.stamp;
+  await fsdb.collection("submissions").doc(key).update({stamp:newVal});
+  S.subs=S.subs.map(s=>s.key===key?{...s,data:{...s.data,stamp:newVal}}:s);
+  render();
+}
 
 function buildStudentForm(){
+  // ── draft 복원 (최초 1회) ──
+  if(S.user&&!S._draftLoaded){
+    S._draftLoaded=true;
+    try{
+      const d=JSON.parse(localStorage.getItem('_vf_draft')||'{}');
+      if(d.name&&d.name===S.name){
+        if(d.subjects&&Object.keys(d.subjects).length) S.subjects=d.subjects;
+        if(d.nw) S.nw=d.nw;
+      } else if(d.name){
+        S.name=d.name;S.month=d.month||S.month;S.week=d.week||S.week;
+        S.subjects=d.subjects||{};S.nw=d.nw||{};
+      }
+    }catch(e){}
+  }
   // ── 학생 인증 체크 ──
   if(!S.authReady){
     return `<div class="loading-wrap"><div class="spinner"></div>로그인 확인 중...</div>`;
@@ -3491,6 +3527,7 @@ async function submitForm(){
   try{
     await saveSubmission({name,month:S.month,week:S.week,subjects:S.subjects,nw:S.nw});
     set({step:"done",name,submitting:false});
+    try{localStorage.removeItem('_vf_draft');}catch(e){}
   }catch(e){set({formError:"저장 실패: "+e.message,submitting:false});}
 }
 
@@ -3677,6 +3714,25 @@ function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{se
 
 // ── 렌더 ──
 function render(){
+  // ── render 전 현재 DOM 값 동기화 (onSnapshot 재렌더 시 입력 보존) ──
+  const _fbEl=document.getElementById('fb-edit-area');
+  if(_fbEl) S.generated=_fbEl.value;
+
+  document.querySelectorAll('textarea[data-subj]').forEach(el=>{
+    const s=el.dataset.subj,f=el.dataset.field;
+    if(s&&f){if(!S.subjects[s])S.subjects[s]={};S.subjects[s][f]=el.value;}
+  });
+  const _pledgeEl=document.getElementById('pledge-input');
+  if(_pledgeEl) S.nw={...S.nw,다짐:_pledgeEl.value};
+
+  // ── localStorage autosave (앱 전환·새로고침 대비) ──
+  if(S.step==='form'&&S.user){
+    try{localStorage.setItem('_vf_draft',JSON.stringify({
+      name:S.name,month:S.month,week:S.week,
+      subjects:S.subjects,nw:S.nw
+    }));}catch(e){}
+  }
+
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
   const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
