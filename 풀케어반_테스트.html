@@ -3346,6 +3346,7 @@ function buildGallery(){
   <div class="gal-grid">${cards}</div>`;
 }
 function galCard(s){
+  const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
   const {key,data}=s;
   const name=data.name||'';
   const tab=S.galCardTabs[key]||'sub';
@@ -3677,7 +3678,7 @@ function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{se
 // ── 렌더 ──
 function render(){
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
-  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
+  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
   if(S.mode==="gallery"&&(S.user||isTeacher)){content=buildGallery();}
   else if(S.mode==="student"){content=buildStudentForm();}
