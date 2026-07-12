@@ -3301,7 +3301,7 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
 
 // ── Claude API ──
 async function callClaude(prompt,apiKey){
-  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:3000,messages:[{role:"user",content:prompt}]})});
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:6000,messages:[{role:"user",content:prompt}]})});
   const data=await res.json();const text=(data.content||[]).map(b=>b.text||"").join("");if(!text)throw new Error(data.error?.message||"API 오류");return text;
 }
 
@@ -3394,12 +3394,12 @@ function galCard(s){
   return`<div class="gal-card">
     <div class="gal-card-head">
       <div class="gal-avatar" style="background:${color}">${esc(name[0]||'?')}</div>
-      <div><div class="gal-name">${esc(name)}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
+      <div><div class="gal-name">${esc(name)}${STUDENT_ENNEAGRAM[name]?'<span style="font-size:11px;font-weight:500;color:#86868b;margin-left:4px">('+(STUDENT_ENNEAGRAM[name])+')</span>':''}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
       <div class="gal-week-badge">${data.month}월 ${data.week}주차</div>
     </div>
     <div class="gal-tabs">
       <button class="gal-tab${tab==='sub'?' gal-tab-active':''}" onclick="galSetTab('${key}','sub')">📝 제출 내용</button>
-      <button class="gal-tab${tab==='fb'?' gal-tab-active':''}" onclick="galSetTab('${key}','fb')">💬 홍쌤 피드백</button>
+      <button class="gal-tab${tab==='fb'?' gal-tab-active':''}" onclick="galSetTab('${key}','fb')">💬 홍쌤 피드백${data.feedbackApproved?'<span style="margin-left:4px;background:#34c759;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle">NEW</span>':''}</button>
     </div>
     ${bodyHtml}
   </div>`;
