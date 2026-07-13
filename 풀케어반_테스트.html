@@ -178,11 +178,11 @@ const CURRICULUM={
   유기:"전 단원 반응 요약본 빠르게 회독. 시험 전날 핵심반응 최종 확인."
 }};
 const MONTH_CHECKLIST={
-"7":{title:"7월 — 기초 체화 단계",desc:"화학은 '정확히' 체화가 핵심(타임어택 아직 금지). 생물은 전범위를 여러 번 빠르게 보는 것이 핵심 — 한 번에 완벽히 외우려 하지 말 것.",
-생물:["VF OX 문제(월·수·금)를 기한 내 풀고 있는가?","기본서(캠벨 굵은글씨+그림) 먼저 읽고 → OX 풀고 → 틀린 부분 이론 재확인 순서를 지키고 있는가?","꼼꼼히 외우면서 진도 빼지 않고, 전범위를 여러 번 빠르게 보는 방식으로 학습 중인가?"],
-화학:["박인규T 방식 그대로 문제 접근 체화(APS) 중인가?","시간을 재고 빠르게 푸는 연습은 하지 않는가? (아직은 '정확히'가 핵심)","박인규T 학습법 체크리스트 숙지했는가?"],
-유기:["약사랑유기화학 강의 + 스미스 예제를 병행하고 있는가?","손으로 메커니즘을 직접 그리며 학습하고 있는가?","매일 1~2시간 유기 확보하고 있는가?"],
-경고:["1500제 건너뛰고 2000제부터 시작 → 즉시 교정","강의만 보고 기본서 안 읽음 → 기본서 병행 지시","유기화학 '어려워서' 거의 안 함 → 매일 1~2시간 지키도록"]},
+"7":{title:"7월 — 기초 체화 단계",desc:"화학은 '정확히' 체화가 핵심(타임어택 절대 금지). 생물은 전범위를 여러 번 빠르게 보는 것이 핵심 — 한 번에 완벽히 외우려 하지 말 것. 70~80% 이해되면 넘어가도 됨.",
+생물:["기본서(캠벨 굵은글씨+그림) 먼저 읽고 → OX 풀고 → 틀린 부분 이론 재확인 순서를 지키고 있는가?","VF OX 문제(월·수·금)를 기한 내 풀고 있는가? (시간재고 풀기 불필요 — 이론 이해가 먼저)","70~80% 이해되면 넘어가고 남은 20%는 메모만 해두는 방식으로 속도 유지 중인가?","캠벨 읽을 때 메커니즘·그림은 반드시 손으로 직접 그려보며 학습하고 있는가?","통합이론 강의는 이해위주+필기 보조 수단으로만 활용하고 있는가? (강의가 목적이 되지 않도록)"],
+화학:["박인규T 방식 그대로 문제 풀기 전 AP(분석→계획)를 한 줄로 먼저 적고 시작하는가?","타임어택 없이 '한 번에 정확히' 체화 중인가? (타임어택은 기출올인원 단계부터)","진도보다 이전 내용 누적복습을 병행하고 있는가?","1500제 → 2000제 순서를 지키고 있는가?"],
+유기:["매일 1~2시간 유기 확보하고 있는가? (하루 빠지면 감각이 떨어짐)","유기는 하루 중 집중이 잘 되는 시간(가급적 오전)에 먼저 배치하고 있는가?","스미스 1회독 시 답 있는 예제(Worked Example)만 손으로 그리며 풀고 있는가?","손으로 메커니즘을 직접 그리며 학습하고 있는가? (눈으로만 보면 안 남음)"],
+경고:["1500제 건너뛰고 2000제부터 시작 → 즉시 교정","강의만 보고 기본서 안 읽음 → 기본서 병행 지시","유기화학 '어려워서' 거의 안 함 → 매일 1~2시간 지키도록. 막판에 갑자기 열리는 과목임을 강조","OX 시간재고 집착 → 7월은 이론 이해가 먼저, 시간재고는 불필요"]},
 "8":{title:"8월 — 전과목 1회독 완성 + APS 체화 단계",desc:"이달 말까지 1500제 완강+2000제 진입이 정상 페이스. 타임어택 모의 1회 제공.",
 생물:["박선우T Base OX 450제 진도 맞춰 풀고 있는가?","캠벨(굵은글씨+그림 위주) 먼저 읽고 OX 풀고 이론 재확인 순서를 지키고 있는가?","전범위를 여러 번 빠르게 보는 방식으로 학습 중인가? (한 번에 완벽하게 외우려는 패턴 경계)"],
 화학:["1500제 완강 완료 또는 완강 목표 시점이 명확한가?","2000제 진입했는가? 코드1·2 중심으로 풀고 있는가?","APS(Analyze-Plan-Solve)가 자동으로 나오기 시작하는가?"],
@@ -3143,7 +3143,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 19. 고득점 = 기본 문제를 확실히
 20. 시험 직전 = 기본기 문제 풀기
 
-### 민동준T 3사이클 전략 + 3노트 시스템 (화학 시험 전략 피드백 시 활용)
+${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학 시험 전략 피드백 시 활용)
 **3사이클 전략** (시험장 시간배분):
 - 1사이클: 쉬운 문제 60~80% 빠르게 확보 (막히면 즉시 넘어가기)
 - 2사이클: 복잡한 계산문제 공략 (화학을 뇌가 신선할 때 먼저 풀기)
@@ -3153,7 +3153,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 - 실수노트: 실수 패턴 기록 → 시험 전날·당일 확인
 - 전략노트: 풀이 전략/시간배분 메모 → 시험 전날·당일 확인
 → 원노트(OneNote) 앱 활용하면 어디서든 확인 가능. O/X 빈칸 퀴즈 형태로 만들면 효율적.
-
+`:''}  
 ### 합격생 실제 학습 패턴 (26학년도 풀케어반 합격생 분석 — 이 패턴을 기준으로 피드백 방향을 결정하세요)
 
 **합격생들이 공통적으로 보인 패턴 — 이런 내용이 보이면 적극 칭찬하고 강화하세요:**
@@ -3238,6 +3238,47 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord}){
 
 ---
 
+${(month==='7'||month==='8')?`## ★ 7~8월 핵심 가이드 (아래 내용을 반드시 피드백에 반영하세요) ★
+
+${(month==='7'&&week==='1')?`> 7월 1주차는 풀케어반 커리큘럼의 첫 주입니다. 루틴이 아직 안 잡혔거나 진도가 약간 느려도 자책하지 않도록, "첫 주니까 괜찮아요. 익숙해지면 속도는 붙게 됩니다"라는 인식을 자연스럽게 넣어주세요.
+`:''}  
+
+### 7-1주차 생물 핵심 가이드
+- 핵심 루틴 (모든 학생 공통 강조): 캠벨 굵은글씨+그림 위주로 읽기 → OX 풀기 → 틀린 부분 이론 재확인
+- 피드백 필수 문구: "이게 VF가 7월 동안 생물에서 계속 강조하는 핵심 루틴이거든요"
+- 70~80% 이해되면 넘어가도 됩니다. 남은 20%는 메모만 해두고 다음 회독 때 보세요
+${month==='7'?`- OX 퀴즈 7월에는 시간재고 안 풀어도 됩니다. 이론 정확히 이해하는 게 먼저예요
+- 8월 OX = 박선우T 통합이론 베이스 문제이므로 지금 박선우T를 잘 봐두면 8월에 복습 기회가 한 번 더 생깁니다
+`:''}  - 통합이론 강의는 이해위주+필기 보조 수단으로만. 강의가 목적이 되면 안 됩니다
+- VF OX는 월·수·금 제공. 기한 내 풀고, 복습은 주말에라도 꼭 해주세요
+
+### 7-1주차 화학 핵심 가이드
+- 타임어택 절대 금지. 느려도 괜찮으니 "한 번에 정확히"가 핵심
+- 문제 풀기 전에 AP(분석→계획)를 한 줄로 먼저 적어보고 시작하는 습관 들이기
+- 진도보다 중요한 건 이전 내용 누적복습. 새 진도만큼 복습 병행이 합격을 결정합니다
+- 1500제 → 2000제 순서 반드시 지키기. 1500제 건너뛰면 기본기 구멍 생깁니다
+
+### 7-1주차 유기 핵심 가이드
+- 매일 1~2시간 확보 필수 — 하루 빠지면 감각이 떨어지는 과목
+- 유기는 오전 또는 하루 중 집중이 가장 잘 되는 시간에 먼저 배치 (피곤할 때 미루면 계속 밀림)
+- 스미스 1회독: 답 있는 예제(Worked Example)만 손으로 직접 그리며 풀기
+- 답 없는 연습문제(Practice Problem)는 2회독 때 풀기
+- 눈으로만 보면 절대 안 남습니다. 손으로 메커니즘을 반드시 그려야 합니다
+- 막판에 갑자기 열리는 과목입니다. 지금 어렵고 진도가 안 나가도 절대 포기하지 마세요
+
+### 7-1주차 생활관리 핵심 가이드
+- 주 3회 이상 고강도 운동(런닝·헬스) — 단순 기분전환이 아니라 집중력·체력·인내력 향상에 직결
+- 고강도 운동이 수면 촉진에도 직결됩니다 — 몸이 충분히 피곤해야 일찍 잠들 수 있어요
+- 수면 = 공부 : 7시간 이상 필수. "22시~26시 사이가 몸이 회복되는 시간대, 늦게 잘수록 회복이 줄어듭니다"
+- 막연한 "일찍 자야지" X → "11시30분 폰 끄기 → 11시40분 침대 들어가기"처럼 세부 루틴으로 제시
+- AI 활용 감사/칭찬 일기 팁: "자기 전에 AI에게 오늘 하루 말로 이야기하고 애니어그램 [유형]인데 감사/칭찬 일기 뭐 쓰면 좋을지 알려달라고 해보세요"
+
+### 7-1주차 피드백 분량이 짧을 때 마지막에 추가할 문구
+학생이 제출한 내용이 전반적으로 짧거나 감정·원인 분석이 없는 경우, 피드백 마지막에 자연스럽게 추가:
+"담주 피드백은 좀 더 자세하고 길게 써보기~ 홍쌤에게 정보가 많이 들어와야 피드백도 더 구체적으로 받을 수 있으니 감정은 어떠했는지, 어려웠던 점은 무엇인지 등등 길게길게~ 써주세요^^"
+
+---
+`:''}
 ## ★ ${month}월 풀케어반 커리큘럼 — 이것이 피드백의 평가 기준입니다 ★
 ※ 주의: 매년 커리큘럼이 조금씩 달라질 수 있습니다. 아래는 현재 등록된 기준이며, 이 기준에 맞춰 학생의 공부 방향이 올바른지 판단하세요.
 
@@ -3435,7 +3476,10 @@ function galCard(s){
 
   const isExpanded=!!S.galCardExpanded[key];
   if(isExpanded){
-    cardBodyHtml=bodyHtml;
+    const closeBtn='<div style="padding:6px 16px 12px">'
+      +'<button onclick="galToggleExpand(\''+key+'\')"'
+      +' style="width:100%;padding:7px;font-size:12px;font-weight:600;color:#86868b;background:#f5f5f7;border:1px solid #e0e0e0;border-radius:10px;cursor:pointer">내용 닫기 ▴</button></div>';
+    cardBodyHtml=bodyHtml+closeBtn;
   }else{
     cardBodyHtml='<div style="padding:10px 16px 14px">'
       +'<button onclick="galToggleExpand(\''+key+'\')"'
@@ -3645,213 +3689,4 @@ function downloadExcel(){
       (sub['생활관리']||{}).good||'',(sub['생활관리']||{}).improve||'',
       nw['생물_단원']||'',nw['생물_강의']||'',nw['생물_문제']||'',
       nw['화학_단원']||'',nw['화학_강의']||'',nw['화학_문제']||'',
-      nw['유기_단원']||'',nw['유기_강의']||'',nw['유기_문제']||'',
-      nw['다짐']||'',d.generatedFeedback||''];
-  });
-  const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
-  const csv=[headers,...rows].map(r=>r.map(esc).join(',')).join('\n');
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function saveApiKey(){const v=document.getElementById("api-input")?.value||"";localStorage.setItem("_apikey",v);set({apiKey:v,showKey:false})}
-
-async function addStudent(){
-  const n=(document.getElementById("roster-add-input")?.value||T.rosterInput||"").trim();
-  if(!n||S.roster.includes(n))return;
-  const r=[...S.roster,n];
-  await saveRoster(r);
-  set({roster:r});
-  setTimeout(()=>{const el=document.getElementById("roster-add-input");if(el){el.value="";T.rosterInput="";}},0);
-}
-async function removeStudent(name){
-  const r=S.roster.filter(n=>n!==name);
-  await saveRoster(r);
-  set({roster:r});
-}
-
-async function selectSub(i){
-  const item=S.subs[i];if(!item)return;
-  const prev=await loadPrev(item.data.name,item.data.month,item.data.week);
-  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false});
-}
-async function delSub(key){
-  if(!confirm("이 데이터를 삭제할까요?"))return;
-  await delSubmission(key);
-  set({sel:S.sel?.key===key?null:S.sel,tab:S.sel?.key===key?"list":S.tab});
-}
-function previewPrompt(){
-  if(!S.sel)return;
-  const info=S.studentInfo[S.sel.data.name]||{};
-  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:info.trait||"",school:info.school||"",prevRecord:S.prevData})});
-}
-async function generateFeedback(){
-  if(!S.sel)return;if(!S.apiKey.trim()){alert("API 키를 먼저 입력해주세요.");return}
-  const info=S.studentInfo[S.sel.data.name]||{};
-  const trait=info.trait||"",school=info.school||"";
-  set({generating:true,generated:""});
-  try{
-    const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData}),S.apiKey);
-    set({generated:result,generating:false});
-  }catch(e){set({generated:"오류: "+e.message,generating:false});}
-}
-function isWebView(){
-  const ua=navigator.userAgent||'';
-  return /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NaverApp|DaumApp|Twitter|Snapchat|TikTok|wv\b/.test(ua)||(ua.includes('Android')&&ua.includes('Version/')&&ua.includes('Chrome')&&!ua.includes('SamsungBrowser'));
-}
-function webViewAlert(){
-  alert('⚠️ 앱 내 브라우저에서는 구글 로그인이 차단됩니다.\n\n【해결 방법】\n• 카카오톡: 우측 하단 ··· → 브라우저로 열기\n• 인스타그램: 우측 하단 ··· → 기본 브라우저로 열기\n• 그 외: 주소를 복사해서 Chrome 또는 Safari에서 열어주세요');
-}
-function instructorLogin(){
-  if(location.protocol==='file:'){
-    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
-    return;
-  }
-  if(isWebView()){webViewAlert();return;}
-  auth.signInWithPopup(googleProvider).then(result=>{
-    const user=result.user;
-    if(user.email!==TEACHER_EMAIL){
-      auth.signOut();
-      alert('접근 권한이 없습니다.\n' + TEACHER_EMAIL + ' 계정으로만 접근 가능합니다.');
-    }else{set({mode:'instructor'});}
-  }).catch(e=>alert('로그인 실패: '+e.message));
-}
-function instructorLogout(){
-  auth.signOut().then(()=>set({mode:'student',user:null}));
-}
-function studentLogin(){
-  if(location.protocol==='file:'){
-    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
-    return;
-  }
-  if(isWebView()){webViewAlert();return;}
-  auth.signInWithPopup(googleProvider).then(result=>{
-    const user=result.user;
-    if(user.email===TEACHER_EMAIL){set({});return;}
-    const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
-    if(allowedEmails.includes(user.email)){set({});}
-    else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.');}
-  }).catch(e=>alert('로그인 실패: '+e.message));
-}
-function studentLogout(){
-  auth.signOut().then(()=>set({mode:'student'}));
-}
-// Firebase 인증 타임아웃 (3초 안에 안 되면 로그인 화면 표시)
-setTimeout(()=>{if(!S.authReady){S.authReady=true;render();}},3000);
-let _appInited=false;
-auth.onAuthStateChanged(user=>{
-  S.user=user;
-  S.authReady=true;
-  render();
-  if(!_appInited){_appInited=true;initApp();}
-});
-
-function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
-
-// ── 렌더 ──
-function render(){
-  // ── render 전 현재 DOM 값 동기화 (onSnapshot 재렌더 시 입력 보존) ──
-  const _fbEl=document.getElementById('fb-edit-area');
-  if(_fbEl) S.generated=_fbEl.value;
-
-  document.querySelectorAll('textarea[data-subj]').forEach(el=>{
-    const s=el.dataset.subj,f=el.dataset.field;
-    if(s&&f){if(!S.subjects[s])S.subjects[s]={};S.subjects[s][f]=el.value;}
-  });
-  const _pledgeEl=document.getElementById('pledge-input');
-  if(_pledgeEl) S.nw={...S.nw,다짐:_pledgeEl.value};
-
-  // ── localStorage autosave (앱 전환·새로고침 대비) ──
-  if(S.step==='form'&&S.user){
-    try{localStorage.setItem('_vf_draft',JSON.stringify({
-      name:S.name,month:S.month,week:S.week,
-      subjects:S.subjects,nw:S.nw
-    }));}catch(e){}
-  }
-
-  const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
-  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
-  let content;
-  if(S.mode==="gallery"&&(S.user||isTeacher)){content=buildGallery();}
-  else if(S.mode==="student"){content=buildStudentForm();}
-  else if(isTeacher){content=buildInstructor();}
-  else{content=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px 20px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;color:#1d1d1f">홍쌤 피드백 확인</div><div style="font-size:13px;color:#86868b;margin-bottom:8px">선생님께 등록된 구글 계정으로 로그인하세요</div><button onclick="instructorLogin()" style="padding:12px 28px;font-size:14px;font-weight:600;background:#0071e3;color:#fff;border:none;border-radius:10px;cursor:pointer">Google 계정으로 로그인</button></div>`;}
-  document.getElementById("app").innerHTML=nav+content;
-}
-
-// ── 초기화 (실시간 리스너) ──
-async function initApp(){
-  try{
-    const rosterDoc=await fsdb.collection("config").doc("roster").get();
-    S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
-    S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
-    fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
-      S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
-      render();
-    });
-  }catch(e){
-    document.getElementById("app").innerHTML=`<div class="loading-wrap"><div style="font-size:32px">⚠️</div><div>Firebase 연결 실패: ${e.message}</div></div>`;
-  }
-}
-
-function moreTips(subj,month,week){
-  var tips=getRandTips(subj,month,week);
-  var box=document.getElementById('tips-box-'+subj);
-  if(!box)return;
-  // 링크 엘리먼트 보존 (tips-box 하단에 위치)
-  var linkEl=box.querySelector('a');
-  var linkHtml=linkEl?'<div style="margin-top:8px">'+linkEl.outerHTML+'</div>':'';
-  var html=tips.map(function(t){return'<div style="font-size:11px;color:#1a3a6c;line-height:1.8;padding-bottom:7px;border-bottom:1px solid rgba(0,113,227,.1)">'+hiliteEnn(t)+'</div>';}).join('');
-  box.innerHTML=html+linkHtml;
-  // 열린 상태로 전환
-  box.style.display='flex';
-  var arrow=document.getElementById('tips-arrow-'+subj);
-  if(arrow)arrow.textContent='▼';
-}
-function toggleTips(subj){
-  var box=document.getElementById('tips-box-'+subj);
-  var arrow=document.getElementById('tips-arrow-'+subj);
-  if(!box)return;
-  var isOpen=box.style.display==='flex';
-  box.style.display=isOpen?'none':'flex';
-  if(arrow)arrow.textContent=isOpen?'▶':'▼';
-}
-function getRandTips(subj,month,week){
-  var wkey=String(month)+'-'+String(week);
-  var pool;
-  if(subj==='생활관리'){
-    var myType=STUDENT_ENNEAGRAM[S.name]||null;
-    var myPrimary=myType?myType.charAt(0):null;
-    var weekTips=((WINNER_POOL[wkey]||{})['생활관리'])||[];
-    var allTips=WINNER_POOL_ALL['생활관리']||[];
-    if(myPrimary){
-      var filtered=weekTips.filter(function(t){
-        var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
-        var nick=mm?mm[1].trim():'';
-        return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
-      });
-      if(filtered.length>=1){pool=filtered;}
-      else{
-        var allFiltered=allTips.filter(function(t){
-          var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
-          var nick=mm?mm[1].trim():'';
-          return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
-        });
-        pool=allFiltered.length>=1?allFiltered:[];
-      }
-    }else{pool=weekTips;}
-  }else{
-    var wp=((WINNER_POOL[wkey]||{})[subj])||[];
-    pool=wp.length?wp:(WINNER_POOL_ALL[subj]||[]);
-  }
-  var arr=pool.slice();
-  for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;}
-  return arr.slice(0,3);
-}
-</script>
-</body>
-</html>
+      nw['유기_단원']||'',nw['유기_강의']||'',nw[
