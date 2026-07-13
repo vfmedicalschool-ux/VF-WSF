@@ -3006,6 +3006,46 @@ async function approveFeedback(){
   try{localStorage.removeItem('_vf_draft');}catch(e){}
   setTimeout(()=>set({approved:false}),3000);
 }
+function saveFeedbackDraft(){
+  const el=document.getElementById('fb-edit-area');
+  const fb=el?el.value:S.generated;
+  if(!fb||!S.sel?.key)return;
+  try{
+    localStorage.setItem('_vf_fb_draft_'+S.sel.key, fb);
+    set({fbDraftSaved:true});
+    setTimeout(()=>set({fbDraftSaved:false}),2500);
+  }catch(e){}
+}
+function loadFeedbackDraft(){
+  if(!S.sel?.key)return;
+  const saved=localStorage.getItem('_vf_fb_draft_'+S.sel.key);
+  if(!saved)return;
+  set({generated:saved});
+}
+function applyFormDraft(){
+  try{
+    const d=JSON.parse(localStorage.getItem('_vf_draft')||'null');
+    if(!d)return;
+    S._draftApplied=true;
+    set({name:d.name||S.name,month:d.month||S.month,week:d.week||S.week,
+      subjects:d.subjects||{},nw:d.nw||{}});
+  }catch(e){}
+}
+function saveFormDraftManual(){
+  const el=document.getElementById('pledge-input');
+  if(el) S.nw={...S.nw,다짐:el.value};
+  document.querySelectorAll('textarea[data-subj]').forEach(el=>{
+    const s=el.dataset.subj,f=el.dataset.field;
+    if(s&&f){if(!S.subjects[s])S.subjects[s]={};S.subjects[s][f]=el.value;}
+  });
+  try{
+    localStorage.setItem('_vf_draft',JSON.stringify({
+      name:S.name,month:S.month,week:S.week,subjects:S.subjects,nw:S.nw
+    }));
+    set({formDraftSaved:true});
+    setTimeout(()=>set({formDraftSaved:false}),2500);
+  }catch(e){}
+}
 function prevMonthNum(m){const n=Number(m);return n===1?12:n-1;}
 async function loadPrev(name,month,week){
   const pw=Number(week)-1,pm=pw<1?prevMonthNum(month):Number(month),pW=pw<1?4:pw;
@@ -3309,7 +3349,7 @@ async function callClaude(prompt,apiKey){
 // ── 상태 ──
 let S={
   mode:"student",step:"form",user:null,authReady:false,name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
-  tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},
+  tab:"list",subs:[],sel:null,prevData:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},fbDraftSaved:false,formDraftSaved:false,
   studentInfo:{},editMW:false,sortBy:"date",filterName:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
@@ -3406,7 +3446,7 @@ function galCard(s){
   return`<div class="gal-card">
     <div class="gal-card-head">
       <div class="gal-avatar" style="background:${color}">${esc(name[0]||'?')}</div>
-      <div><div class="gal-name">${esc(name)}${(S.studentInfo[name]?.trait)?`<span style="font-size:11px;font-weight:500;color:#86868b;margin-left:4px">(${S.studentInfo[name].trait})</span>`:''} ${data.stamp?'<span style="font-size:16px;margin-left:4px" title="참 잘했어요!">🌟</span>':''}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
+      <div><div class="gal-name">${esc(name)}${(S.studentInfo[name]?.trait||STUDENT_ENNEAGRAM[name])?`<span style="font-size:11px;font-weight:500;color:#86868b;margin-left:4px">(${S.studentInfo[name]?.trait||STUDENT_ENNEAGRAM[name]})</span>`:''} ${data.stamp?'<span style="font-size:16px;margin-left:4px" title="참 잘했어요!">🌟</span>':''}</div><div class="gal-meta">${fmtTs(data.submittedAt)}</div></div>
       ${isTeacher&&data.feedbackApproved?`<button onclick="toggleStamp('${key}')" style="border:none;background:${data.stamp?'#ffd60a':'#f5f5f7'};color:${data.stamp?'#1d1d1f':'#86868b'};font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;margin-right:6px;transition:all .2s" title="${data.stamp?'스탬프 제거':'참 잘했어요! 스탬프 추가'}">${data.stamp?'🌟 취소':'🌟 참 잘했어요!'}</button>`:''}
       <div class="gal-week-badge">${data.month}월 ${data.week}주차</div>
     </div>
@@ -3493,7 +3533,7 @@ function buildStudentForm(){
     <div><div style="font-size:16px;font-weight:700">VF 풀케어반 주간 셀프피드백</div><div style="font-size:12px;color:#FFD60A;margin-top:5px">매주 성실하게 작성할수록 더 정확한 피드백을 받을 수 있어요 :)</div></div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
       <img src="cropped-circle.png" style="height:38px;opacity:.85">
-      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v4.5 · Jul 2026</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v5.0 · Jul 2026</span>
     </div>
   </div>
   <div class="card"><div class="card-head">기본 정보</div>
@@ -3509,8 +3549,8 @@ function buildStudentForm(){
     <div style="overflow-x:auto;margin-bottom:12px">${nwTable}</div>
     <div><span class="lbl">✨ 새로운 주 다짐 한마디!</span><input id="pledge-input" type="text" value="${esc(S.nw.다짐||"")}" placeholder="예: 기운 내서 한 주 또 채워보자" oninput="T.pledgeInput=this.value"></div>
   </div>
-  ${S.formError?`<div class="err">${esc(S.formError)}</div>`:""}
-  <button class="btn-primary" onclick="submitForm()" ${S.submitting?"disabled":""}>${S.submitting?"저장 중...":"제출하기"}</button>
+  ${(()=>{try{const d=JSON.parse(localStorage.getItem('_vf_draft')||'null');return d&&!S._draftApplied?'<div style="background:#e8f4fd;border:1.5px solid #74b9e8;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="applyFormDraft()" style="background:#0071e3;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';}catch(e){return '';}})()}${S.formError?`<div class="err">${esc(S.formError)}</div>`:""}
+  <button onclick="saveFormDraftManual()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">${S.formDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button class="btn-primary" onclick="submitForm()" ${S.submitting?"disabled":""}>${S.submitting?"저장 중...":"제출하기"}</button>
   </div>`}
   </div>`;
 }
@@ -3563,7 +3603,7 @@ function buildInstructor(){
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
-    ${!S.generating&&S.generated?`<textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
+    ${!S.generating&&S.generated?`${(()=>{const dk='_vf_fb_draft_'+(S.sel?.key||'');const saved=dk?localStorage.getItem(dk):null;return saved&&saved!==S.generated?'<div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="loadFeedbackDraft()" style="background:#f0a500;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';})()} <textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="saveFeedbackDraft()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap">${S.fbDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
     ${!S.generating&&!S.generated?`<div style="text-align:center;padding:32px 20px;color:#aeaeb2;font-size:13px">피드백 생성 버튼을 누르면 자동으로 만들어져요<br><span style="font-size:11px">(API 키 필요)</span></div>`:""}
     </div><button class="btn-ghost" onclick="set({tab:'list'})" style="width:100%;padding:11px;margin-bottom:24px">← 목록으로 돌아가기</button></div>`;
   }
@@ -3574,7 +3614,7 @@ function buildInstructor(){
     <div style="display:flex;align-items:center;gap:12px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
         <img src="cropped-circle.png" style="height:38px;opacity:.85">
-        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v4.5 · Jul 2026</span>
+        <span style="font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.3px">v5.0 · Jul 2026</span>
       </div>
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
