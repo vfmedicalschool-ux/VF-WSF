@@ -3689,4 +3689,194 @@ function downloadExcel(){
       (sub['생활관리']||{}).good||'',(sub['생활관리']||{}).improve||'',
       nw['생물_단원']||'',nw['생물_강의']||'',nw['생물_문제']||'',
       nw['화학_단원']||'',nw['화학_강의']||'',nw['화학_문제']||'',
-      nw['유기_단원']||'',nw['유기_강의']||'',nw[
+      nw['유기_단원']||'',nw['유기_강의']||'',nw['유기_문제']||'',
+      nw['다짐']||'',d.generatedFeedback||''];
+  });
+  const esc=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const csv=[headers,...rows].map(r=>r.map(esc).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function saveApiKey(){const v=document.getElementById("api-input")?.value||"";localStorage.setItem("_apikey",v);set({apiKey:v,showKey:false})}
+
+async function addStudent(){
+  const n=(document.getElementById("roster-add-input")?.value||T.rosterInput||"").trim();
+  if(!n||S.roster.includes(n))return;
+  const r=[...S.roster,n];
+  await saveRoster(r);
+  set({roster:r});
+  setTimeout(()=>{const el=document.getElementById("roster-add-input");if(el){el.value="";T.rosterInput="";}},0);
+}
+async function removeStudent(name){
+  const r=S.roster.filter(n=>n!==name);
+  await saveRoster(r);
+  set({roster:r});
+}
+
+async function selectSub(i){
+  const item=S.subs[i];if(!item)return;
+  const prev=await loadPrev(item.data.name,item.data.month,item.data.week);
+  set({sel:item,tab:"detail",prevData:prev,generated:item.data.generatedFeedback||"",showPrompt:false});
+}
+async function delSub(key){
+  if(!confirm("이 데이터를 삭제할까요?"))return;
+  await delSubmission(key);
+  set({sel:S.sel?.key===key?null:S.sel,tab:S.sel?.key===key?"list":S.tab});
+}
+function previewPrompt(){
+  if(!S.sel)return;
+  const info=S.studentInfo[S.sel.data.name]||{};
+  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:info.trait||"",school:info.school||"",prevRecord:S.prevData})});
+}
+async function generateFeedback(){
+  if(!S.sel)return;if(!S.apiKey.trim()){alert("API 키를 먼저 입력해주세요.");return}
+  const info=S.studentInfo[S.sel.data.name]||{};
+  const trait=info.trait||"",school=info.school||"";
+  set({generating:true,generated:""});
+  try{
+    const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData}),S.apiKey);
+    set({generated:result,generating:false});
+  }catch(e){set({generated:"오류: "+e.message,generating:false});}
+}
+function isWebView(){
+  const ua=navigator.userAgent||'';
+  return /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NaverApp|DaumApp|Twitter|Snapchat|TikTok|wv\b/.test(ua)||(ua.includes('Android')&&ua.includes('Version/')&&ua.includes('Chrome')&&!ua.includes('SamsungBrowser'));
+}
+function webViewAlert(){
+  alert('⚠️ 앱 내 브라우저에서는 구글 로그인이 차단됩니다.\n\n【해결 방법】\n• 카카오톡: 우측 하단 ··· → 브라우저로 열기\n• 인스타그램: 우측 하단 ··· → 기본 브라우저로 열기\n• 그 외: 주소를 복사해서 Chrome 또는 Safari에서 열어주세요');
+}
+function instructorLogin(){
+  if(location.protocol==='file:'){
+    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
+    return;
+  }
+  if(isWebView()){webViewAlert();return;}
+  auth.signInWithPopup(googleProvider).then(result=>{
+    const user=result.user;
+    if(user.email!==TEACHER_EMAIL){
+      auth.signOut();
+      alert('접근 권한이 없습니다.\n' + TEACHER_EMAIL + ' 계정으로만 접근 가능합니다.');
+    }else{set({mode:'instructor'});}
+  }).catch(e=>alert('로그인 실패: '+e.message));
+}
+function instructorLogout(){
+  auth.signOut().then(()=>set({mode:'student',user:null}));
+}
+function studentLogin(){
+  if(location.protocol==='file:'){
+    alert('⚠️ 로컬 파일에서는 구글 로그인을 사용할 수 없습니다.\n\nGitHub Pages URL로 접속해주세요:\nhttps://vfmedicalschool-ux.github.io/VF-WSF/');
+    return;
+  }
+  if(isWebView()){webViewAlert();return;}
+  auth.signInWithPopup(googleProvider).then(result=>{
+    const user=result.user;
+    if(user.email===TEACHER_EMAIL){set({});return;}
+    const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
+    if(allowedEmails.includes(user.email)){set({});}
+    else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.');}
+  }).catch(e=>alert('로그인 실패: '+e.message));
+}
+function studentLogout(){
+  auth.signOut().then(()=>set({mode:'student'}));
+}
+// Firebase 인증 타임아웃 (3초 안에 안 되면 로그인 화면 표시)
+setTimeout(()=>{if(!S.authReady){S.authReady=true;render();}},3000);
+let _appInited=false;
+auth.onAuthStateChanged(user=>{
+  S.user=user;
+  S.authReady=true;
+  render();
+  if(!_appInited){_appInited=true;initApp();}
+});
+
+function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
+
+// ── 렌더 ──
+function render(){
+  const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
+  const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
+  let content;
+  if(S.mode==="gallery"&&(S.user||isTeacher)){content=buildGallery();}
+  else if(S.mode==="student"){content=buildStudentForm();}
+  else if(isTeacher){content=buildInstructor();}
+  else{content=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px 20px;text-align:center"><div style="font-size:48px">🔒</div><div style="font-size:18px;font-weight:700;color:#1d1d1f">홍쌤 피드백 확인</div><div style="font-size:13px;color:#86868b;margin-bottom:8px">선생님께 등록된 구글 계정으로 로그인하세요</div><button onclick="instructorLogin()" style="padding:12px 28px;font-size:14px;font-weight:600;background:#0071e3;color:#fff;border:none;border-radius:10px;cursor:pointer">Google 계정으로 로그인</button></div>`;}
+  document.getElementById("app").innerHTML=nav+content;
+}
+
+// ── 초기화 (실시간 리스너) ──
+async function initApp(){
+  try{
+    const rosterDoc=await fsdb.collection("config").doc("roster").get();
+    S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
+    S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
+    fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
+      S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
+      render();
+    });
+  }catch(e){
+    document.getElementById("app").innerHTML=`<div class="loading-wrap"><div style="font-size:32px">⚠️</div><div>Firebase 연결 실패: ${e.message}</div></div>`;
+  }
+}
+
+function moreTips(subj,month,week){
+  var tips=getRandTips(subj,month,week);
+  var box=document.getElementById('tips-box-'+subj);
+  if(!box)return;
+  // 링크 엘리먼트 보존 (tips-box 하단에 위치)
+  var linkEl=box.querySelector('a');
+  var linkHtml=linkEl?'<div style="margin-top:8px">'+linkEl.outerHTML+'</div>':'';
+  var html=tips.map(function(t){return'<div style="font-size:11px;color:#1a3a6c;line-height:1.8;padding-bottom:7px;border-bottom:1px solid rgba(0,113,227,.1)">'+hiliteEnn(t)+'</div>';}).join('');
+  box.innerHTML=html+linkHtml;
+  // 열린 상태로 전환
+  box.style.display='flex';
+  var arrow=document.getElementById('tips-arrow-'+subj);
+  if(arrow)arrow.textContent='▼';
+}
+function toggleTips(subj){
+  var box=document.getElementById('tips-box-'+subj);
+  var arrow=document.getElementById('tips-arrow-'+subj);
+  if(!box)return;
+  var isOpen=box.style.display==='flex';
+  box.style.display=isOpen?'none':'flex';
+  if(arrow)arrow.textContent=isOpen?'▶':'▼';
+}
+function getRandTips(subj,month,week){
+  var wkey=String(month)+'-'+String(week);
+  var pool;
+  if(subj==='생활관리'){
+    var myType=STUDENT_ENNEAGRAM[S.name]||null;
+    var myPrimary=myType?myType.charAt(0):null;
+    var weekTips=((WINNER_POOL[wkey]||{})['생활관리'])||[];
+    var allTips=WINNER_POOL_ALL['생활관리']||[];
+    if(myPrimary){
+      var filtered=weekTips.filter(function(t){
+        var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
+        var nick=mm?mm[1].trim():'';
+        return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
+      });
+      if(filtered.length>=1){pool=filtered;}
+      else{
+        var allFiltered=allTips.filter(function(t){
+          var mm=t.match(/[—–]\s*([^\(]+)\s*\(/);
+          var nick=mm?mm[1].trim():'';
+          return (WINNER_ENNEAGRAM[nick]||'').charAt(0)===myPrimary;
+        });
+        pool=allFiltered.length>=1?allFiltered:[];
+      }
+    }else{pool=weekTips;}
+  }else{
+    var wp=((WINNER_POOL[wkey]||{})[subj])||[];
+    pool=wp.length?wp:(WINNER_POOL_ALL[subj]||[]);
+  }
+  var arr=pool.slice();
+  for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;}
+  return arr.slice(0,3);
+}
+</script>
+</body>
+</html>
