@@ -3001,6 +3001,8 @@ async function approveFeedback(){
   const el=document.getElementById('fb-edit-area');
   const fb=(el?el.value:S.generated).trim();
   if(!fb||!S.sel?.key)return;
+  const _d=S.sel.data;
+  if(isLocked(_d.month,_d.week)){alert('🔒 '+_d.month+'월 '+_d.week+'주차는 잠금 처리되어 수정할 수 없어요.');return;}
   await fsdb.collection("submissions").doc(S.sel.key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp(),feedbackApproved:true});
   set({generated:fb,approved:true});
   try{localStorage.removeItem('_vf_draft');}catch(e){}
@@ -3394,10 +3396,19 @@ let S={
   studentInfo:{},editMW:false,sortBy:"date",filterName:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
-  checkMonth:"11",checkWeek:"2"
+  checkMonth:"11",checkWeek:"2",
+  lockedWeeks:[],showLock:false
 };
 const T={rosterInput:""};
 function set(p){Object.assign(S,p);render()}
+function isLocked(month,week){return S.lockedWeeks.includes(String(month)+'-'+String(week));}
+async function toggleLockWeek(month,week){
+  const key=String(month)+'-'+String(week);
+  let arr=[...S.lockedWeeks];
+  if(arr.includes(key)){arr=arr.filter(k=>k!==key);}else{arr.push(key);}
+  await fsdb.collection('config').doc('locks').set({locked:arr});
+  S.lockedWeeks=arr;render();
+}
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function hiliteEnn(t){return esc(t).replace(/\[(\d+w\d+)\]/g,'<span style="color:#0059b3;font-weight:700">[$1]</span>');}
 function opt(arr,val){return arr.map(([v,l])=>`<option value="${esc(v)}"${v===val?" selected":""}>${esc(l)}</option>`).join("")}
@@ -3506,6 +3517,7 @@ function galToggleExpand(key){S.galCardExpanded={...S.galCardExpanded,[key]:!S.g
 async function toggleStamp(key){
   const sub=S.subs.find(s=>s.key===key);
   if(!sub)return;
+  if(isLocked(sub.data.month,sub.data.week)){alert('🔒 '+sub.data.month+'월 '+sub.data.week+'주차는 잠금 처리되어 수정할 수 없어요.');return;}
   const newVal=!sub.data.stamp;
   await fsdb.collection("submissions").doc(key).update({stamp:newVal});
   S.subs=S.subs.map(s=>s.key===key?{...s,data:{...s.data,stamp:newVal}}:s);
@@ -3602,6 +3614,7 @@ function buildStudentForm(){
 async function submitForm(){
   const name=document.getElementById("name-select")?.value||S.name;
   if(!name){set({formError:"이름을 선택해주세요."});return}
+  if(isLocked(S.month,S.week)){set({formError:"🔒 "+S.month+"월 "+S.week+"주차는 잠금 처리되어 제출할 수 없어요."});return}
   const pledge=document.getElementById("pledge-input")?.value||S.nw.다짐||"";
   document.querySelectorAll("textarea[data-subj]").forEach(el=>{const s=el.dataset.subj,f=el.dataset.field;if(s&&f)S.subjects={...S.subjects,[s]:{...S.subjects[s],[f]:el.value}}});
   document.querySelectorAll("[data-nw]").forEach(el=>{const k=el.dataset.nw;if(k)S.nw={...S.nw,[k]:el.value}});
@@ -3620,7 +3633,16 @@ function buildInstructor(){
   const apiStatus=S.apiKey?`<span class="dot dot-on"></span><span style="color:#1a7a3a;font-weight:600">입력됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b;font-weight:600">미입력</span> <span style="color:#aeaeb2;font-size:11px">(데이터 확인은 가능)</span>`;
   const apiSection=`<div class="apikey-box"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600;color:#0059b3">🔑 API 키 &nbsp; ${apiStatus}</div><button class="btn-ghost btn-sm" onclick="set({showKey:!S.showKey})">${S.showKey?"닫기":"설정"}</button></div>${S.showKey?`<div style="display:flex;gap:6px;margin-top:9px"><input type="password" id="api-input" value="${esc(S.apiKey)}" placeholder="sk-ant-api03-..."><button class="btn-blue btn-sm" onclick="saveApiKey()" style="white-space:nowrap">저장</button></div>`:""}</div>`;
 
-  const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>{const info=S.studentInfo[n]||{};return`<div class="roster-item" style="flex-direction:column;align-items:stretch;gap:8px;padding:11px 13px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div><div class="g2" style="margin:0"><div><span class="lbl">애니어그램 유형</span><select onchange="saveStudentInfo('${esc(n)}','trait',this.value)">${opt(ENN_OPTIONS,info.trait||"")}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input type="text" value="${esc(info.school||"")}" placeholder="예: 계명대, 경성대" onchange="saveStudentInfo('${esc(n)}','school',this.value)"></div></div><div style="margin-top:6px"><span class="lbl">구글 이메일</span><input type="email" style="font-size:12px" value="${esc(info.email||"")}" placeholder="예: student@gmail.com" onchange="saveStudentInfo('${esc(n)}','email',this.value)"></div></div>`}).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
+  // ── 주차 잠금 관리 ──
+  const months=['7','8','9','10','11','12'];
+  const lockRows=months.map(m=>['1','2','3','4'].map(w=>{
+    const k=m+'-'+w;
+    const locked=S.lockedWeeks.includes(k);
+    return `<button onclick="toggleLockWeek('${m}','${w}')" style="padding:5px 10px;font-size:11px;font-weight:700;border-radius:7px;cursor:pointer;border:1.5px solid ${locked?'#c0392b':'#d2d2d7'};background:${locked?'#fff0f0':'#f5f5f7'};color:${locked?'#c0392b':'#86868b'};min-width:56px">${locked?'🔒':'🔓'} ${m}-${w}주</button>`;
+  }).join('')).map((row,i)=>`<div style="display:flex;gap:5px;margin-bottom:4px">${row}</div>`).join('');
+  const lockSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showLock?';margin-bottom:12px':''}"><div class="card-head" style="margin-bottom:0">🔒 주차 잠금 관리 ${S.lockedWeeks.length>0?`<span style="font-size:11px;font-weight:500;color:#c0392b;margin-left:6px">(${S.lockedWeeks.length}개 잠금 중)</span>`:''}</div><button class="btn-ghost btn-sm" onclick="set({showLock:!S.showLock})">${S.showLock?'닫기':'관리'}</button></div>${S.showLock?`<div style="font-size:11px;color:#86868b;margin-bottom:10px">잠근 주차는 학생 제출·피드백 수정·스탬프 변경이 모두 차단됩니다.</div>${lockRows}`:''}</div>`;
+
+    const rosterSection=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center${S.showRoster?";margin-bottom:12px":""}"><div class="card-head" style="margin-bottom:0">👥 학생 명단 (${S.roster.length}명)</div><button class="btn-ghost btn-sm" onclick="set({showRoster:!S.showRoster})">${S.showRoster?"닫기":"관리"}</button></div>${S.showRoster?`<div>${S.roster.map(n=>{const info=S.studentInfo[n]||{};return`<div class="roster-item" style="flex-direction:column;align-items:stretch;gap:8px;padding:11px 13px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${esc(n)}</span><button class="roster-del" onclick="removeStudent('${esc(n)}')" title="삭제">×</button></div><div class="g2" style="margin:0"><div><span class="lbl">애니어그램 유형</span><select onchange="saveStudentInfo('${esc(n)}','trait',this.value)">${opt(ENN_OPTIONS,info.trait||"")}</select></div><div><span class="lbl">주력 학교 (쉼표 구분)</span><input type="text" value="${esc(info.school||"")}" placeholder="예: 계명대, 경성대" onchange="saveStudentInfo('${esc(n)}','school',this.value)"></div></div><div style="margin-top:6px"><span class="lbl">구글 이메일</span><input type="email" style="font-size:12px" value="${esc(info.email||"")}" placeholder="예: student@gmail.com" onchange="saveStudentInfo('${esc(n)}','email',this.value)"></div></div>`}).join("")}<div style="display:flex;gap:7px;margin-top:8px"><input id="roster-add-input" type="text" placeholder="이름 입력 후 추가" oninput="T.rosterInput=this.value" onkeydown="if(event.key==='Enter')addStudent()"><button class="btn-blue btn-sm" onclick="addStudent()" style="white-space:nowrap">추가</button></div></div>`:""}</div>`;
 
   // 미제출자 카드
   const submittedNames=new Set(S.subs.filter(s=>String(s.data.month)===S.checkMonth&&String(s.data.week)===S.checkWeek).map(s=>s.data.name));
@@ -3663,7 +3685,7 @@ function buildInstructor(){
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
   </div>
-  ${apiSection}${rosterSection}${absentCard}${tabBar}${listHTML}${detailHTML}
+  ${apiSection}${lockSection}${rosterSection}${absentCard}${tabBar}${listHTML}${detailHTML}
   </div>`;
 }
 
@@ -3814,6 +3836,11 @@ async function initApp(){
     const rosterDoc=await fsdb.collection("config").doc("roster").get();
     S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
     S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
+    const locksDoc=await fsdb.collection("config").doc("locks").get();
+    S.lockedWeeks=locksDoc.exists?(locksDoc.data().locked||[]):[];
+    fsdb.collection("config").doc("locks").onSnapshot(snap=>{
+      S.lockedWeeks=snap.exists?(snap.data().locked||[]):[];render();
+    });
     fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
       S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
       render();
