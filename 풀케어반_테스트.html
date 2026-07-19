@@ -3820,6 +3820,18 @@ function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{se
 
 // ── 렌더 ──
 function render(){
+  // ── DOM→S 동기화: onSnapshot 재렌더 시 입력 중인 값 보존 ──
+  const _fbEl=document.getElementById('fb-edit-area');
+  if(_fbEl) S.generated=_fbEl.value;
+  document.querySelectorAll('textarea[data-subj]').forEach(el=>{
+    const _s=el.dataset.subj,_f=el.dataset.field;
+    if(_s&&_f){if(!S.subjects[_s])S.subjects[_s]={};S.subjects[_s][_f]=el.value;}
+  });
+  const _pledgeEl=document.getElementById('pledge-input');
+  if(_pledgeEl) S.nw={...S.nw,다짐:_pledgeEl.value};
+  if(S.step==='form'&&S.user){
+    try{localStorage.setItem('_vf_draft',JSON.stringify({name:S.name,month:S.month,week:S.week,subjects:S.subjects,nw:S.nw}));}catch(e){}
+  }
   const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
   const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
