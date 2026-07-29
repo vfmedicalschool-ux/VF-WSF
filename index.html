@@ -3114,12 +3114,30 @@ function hasPrev(name,month,week){
   }
   return false;
 }
+// 보안 규칙이 참조할 허용 이메일 목록 (studentInfo에서 자동 추출한 평면 배열)
+function buildAllowedEmails(info){
+  const list=Object.values(info||{}).map(i=>(i&&i.email||"").trim().toLowerCase()).filter(Boolean);
+  list.push(TEACHER_EMAIL.toLowerCase());
+  return [...new Set(list)];
+}
 async function saveRoster(names){
-  await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo});
+  await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo,allowedEmails:buildAllowedEmails(S.studentInfo)});
 }
 async function saveStudentInfo(name,field,value){
   S.studentInfo={...S.studentInfo,[name]:{...S.studentInfo[name],[field]:value}};
-  await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo});
+  await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo,allowedEmails:buildAllowedEmails(S.studentInfo)});
+}
+// 기존 데이터에 allowedEmails가 없거나 어긋나면 맞춰줌 (강사 로그인 시 자동 실행)
+async function syncAllowedEmails(){
+  try{
+    const doc=await fsdb.collection("config").doc("roster").get();
+    if(!doc.exists)return null;
+    const cur=doc.data().allowedEmails||[];
+    const want=buildAllowedEmails(doc.data().studentInfo||{});
+    const same=cur.length===want.length&&want.every(e=>cur.includes(e));
+    if(!same){ await fsdb.collection("config").doc("roster").update({allowedEmails:want}); }
+    return want;
+  }catch(e){ console.warn('허용 이메일 동기화 실패:',e.code||e.message); return null; }
 }
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
@@ -3676,7 +3694,7 @@ async function callClaude(prompt,apiKey){
 // ── 상태 ──
 let S={
   mode:"student",step:"form",user:null,authReady:false,name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
-  tab:"list",subs:[],sel:null,prevData:null,prevData2:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},fbDraftSaved:false,formDraftSaved:false,
+  tab:"list",subs:[],sel:null,prevData:null,prevData2:null,allowedEmails:null,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},fbDraftSaved:false,formDraftSaved:false,
   studentInfo:{},editMW:false,sortBy:"date",filterName:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
@@ -3947,6 +3965,12 @@ function buildInstructor(){
       </label>
     </div>
     <div style="font-size:11px;color:#86868b;margin-top:7px;line-height:1.6">개인정보(실명·GPA·토익·지원전략)라 소스에 넣지 않고 서버에 저장합니다. 강사 로그인 시에만 불러옵니다.<br><b style="color:#c45400">업로드용 JSON 파일은 절대 배포 폴더(Vercel)에 넣지 마세요.</b> 내 PC에만 보관하세요.</div>
+    ${(()=>{const n=(S.allowedEmails||[]).length, noMail=Object.entries(S.studentInfo||{}).filter(([k,v])=>!(v&&v.email)).map(([k])=>k);
+      return `<div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(0,0,0,.07);font-size:11px;line-height:1.6">
+        <b style="color:${n?'#1a7a3a':'#c0392b'}">🔐 접근 허용 명단 ${n?`${n}개 이메일 등록됨`:'미설정'}</b>
+        <span style="color:#86868b">— 이 목록에 있는 계정만 데이터를 볼 수 있습니다. 학생 이메일을 입력하면 자동으로 반영됩니다.</span>
+        ${noMail.length?`<div style="color:#c45400;margin-top:4px">⚠️ 이메일 미입력 ${noMail.length}명: ${noMail.slice(0,8).map(esc).join(', ')}${noMail.length>8?' 외':''} — 이 학생들은 로그인해도 접속이 막힙니다.</div>`:''}
+      </div>`;})()}
   </div>`;
 
   // ── 피드백 소요시간 현황 (5분 목표 추적) ──
@@ -4217,8 +4241,10 @@ auth.onAuthStateChanged(async user=>{
   if(user){
     // 로그인한 사용자만 개인정보 로드. 프로필(상담내용)은 강사 전용.
     await loadEnneagram();
-    if(user.email===TEACHER_EMAIL) await loadProfiles();
-    else STUDENT_PROFILE={};
+    if(user.email===TEACHER_EMAIL){
+      await loadProfiles();
+      S.allowedEmails=await syncAllowedEmails();   // 명단 자동 동기화
+    }else STUDENT_PROFILE={};
     render();
   }else{
     STUDENT_PROFILE={}; STUDENT_ENNEAGRAM={};
