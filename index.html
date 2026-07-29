@@ -3115,17 +3115,31 @@ function hasPrev(name,month,week){
   return false;
 }
 // 보안 규칙이 참조할 허용 이메일 목록 (studentInfo에서 자동 추출한 평면 배열)
-function buildAllowedEmails(info){
-  const list=Object.values(info||{}).map(i=>(i&&i.email||"").trim().toLowerCase()).filter(Boolean);
+// ★ 현재 명단(names)에 있는 학생만 포함. 명단에서 뺀 학생은 studentInfo가 남아 있어도 접근 차단.
+function buildAllowedEmails(info,names){
+  const roster=new Set(names||[]);
+  const list=Object.entries(info||{})
+    .filter(([n])=>roster.has(n))
+    .map(([,i])=>(i&&i.email||"").trim().toLowerCase())
+    .filter(Boolean);
   list.push(TEACHER_EMAIL.toLowerCase());
   return [...new Set(list)];
 }
+// 명단에서 빠졌는데 정보가 남아 있는(=권한이 남을 뻔한) 학생 목록
+function staleStudents(info,names){
+  const roster=new Set(names||[]);
+  return Object.entries(info||{}).filter(([n,i])=>!roster.has(n)&&i&&i.email).map(([n])=>n);
+}
 async function saveRoster(names){
-  await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo,allowedEmails:buildAllowedEmails(S.studentInfo)});
+  const ae=buildAllowedEmails(S.studentInfo,names);
+  await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo,allowedEmails:ae});
+  S.allowedEmails=ae;
 }
 async function saveStudentInfo(name,field,value){
   S.studentInfo={...S.studentInfo,[name]:{...S.studentInfo[name],[field]:value}};
-  await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo,allowedEmails:buildAllowedEmails(S.studentInfo)});
+  const ae=buildAllowedEmails(S.studentInfo,S.roster);
+  await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo,allowedEmails:ae});
+  S.allowedEmails=ae;
 }
 // 기존 데이터에 allowedEmails가 없거나 어긋나면 맞춰줌 (강사 로그인 시 자동 실행)
 async function syncAllowedEmails(){
@@ -3133,7 +3147,7 @@ async function syncAllowedEmails(){
     const doc=await fsdb.collection("config").doc("roster").get();
     if(!doc.exists)return null;
     const cur=doc.data().allowedEmails||[];
-    const want=buildAllowedEmails(doc.data().studentInfo||{});
+    const want=buildAllowedEmails(doc.data().studentInfo||{},doc.data().names||[]);
     const same=cur.length===want.length&&want.every(e=>cur.includes(e));
     if(!same){ await fsdb.collection("config").doc("roster").update({allowedEmails:want}); }
     return want;
@@ -3965,11 +3979,15 @@ function buildInstructor(){
       </label>
     </div>
     <div style="font-size:11px;color:#86868b;margin-top:7px;line-height:1.6">개인정보(실명·GPA·토익·지원전략)라 소스에 넣지 않고 서버에 저장합니다. 강사 로그인 시에만 불러옵니다.<br><b style="color:#c45400">업로드용 JSON 파일은 절대 배포 폴더(Vercel)에 넣지 마세요.</b> 내 PC에만 보관하세요.</div>
-    ${(()=>{const n=(S.allowedEmails||[]).length, noMail=Object.entries(S.studentInfo||{}).filter(([k,v])=>!(v&&v.email)).map(([k])=>k);
+    ${(()=>{const n=(S.allowedEmails||[]).length;
+      const inRoster=(S.roster||[]);
+      const noMail=inRoster.filter(k=>!(S.studentInfo?.[k]?.email));
+      const stale=staleStudents(S.studentInfo,S.roster);
       return `<div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(0,0,0,.07);font-size:11px;line-height:1.6">
-        <b style="color:${n?'#1a7a3a':'#c0392b'}">🔐 접근 허용 명단 ${n?`${n}개 이메일 등록됨`:'미설정'}</b>
-        <span style="color:#86868b">— 이 목록에 있는 계정만 데이터를 볼 수 있습니다. 학생 이메일을 입력하면 자동으로 반영됩니다.</span>
-        ${noMail.length?`<div style="color:#c45400;margin-top:4px">⚠️ 이메일 미입력 ${noMail.length}명: ${noMail.slice(0,8).map(esc).join(', ')}${noMail.length>8?' 외':''} — 이 학생들은 로그인해도 접속이 막힙니다.</div>`:''}
+        <b style="color:${n?'#1a7a3a':'#c0392b'}">🔐 접근 허용 명단 ${n?`${n}개`:'미설정'}</b>
+        <span style="color:#86868b">= 학생 ${Math.max(n-1,0)}명 + 강사 1명 · 명단(${inRoster.length}명)에 있는 학생만 포함됩니다.</span>
+        ${noMail.length?`<div style="color:#c45400;margin-top:4px">⚠️ 이메일 미입력 ${noMail.length}명: ${noMail.slice(0,8).map(esc).join(', ')}${noMail.length>8?' 외':''} — 로그인해도 접속이 막힙니다.</div>`:''}
+        ${stale.length?`<div style="color:#6e6e73;margin-top:4px">🚫 명단에서 빠져 접근 차단된 학생 ${stale.length}명: ${stale.slice(0,8).map(esc).join(', ')}${stale.length>8?' 외':''}</div>`:''}
       </div>`;})()}
   </div>`;
 
