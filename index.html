@@ -4293,12 +4293,23 @@ function studentLogin(){
     return;
   }
   if(isWebView()){webViewAlert();return;}
-  auth.signInWithPopup(googleProvider).then(result=>{
+  auth.signInWithPopup(googleProvider).then(async result=>{
     const user=result.user;
     if(sameEmail(user.email,TEACHER_EMAIL)){set({});return;}
-    const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
+    // ★ 로그인 직후에는 명단이 아직 로드되지 않았을 수 있음 → 반드시 직접 조회 후 판정
+    let info=S.studentInfo;
+    if(!info||!Object.keys(info).length){
+      try{
+        const d=await fsdb.collection('config').doc('roster').get();
+        if(d.exists){ info=d.data().studentInfo||{}; S.studentInfo=info; S.roster=d.data().names||[]; }
+      }catch(e){
+        // 명단을 읽지 못하면 판단 불가 → 차단하지 말고 통과시킨 뒤 정식 화면에서 다시 검사
+        console.warn('명단 조회 실패:',e.code||e.message); set({}); return;
+      }
+    }
+    const allowedEmails=Object.values(info||{}).map(i=>i&&i.email).filter(Boolean);
     if(allowedEmails.some(e=>sameEmail(e,user.email))){set({});}
-    else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.');}
+    else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.\n\n로그인한 계정: '+user.email);}
   }).catch(e=>alert('로그인 실패: '+e.message));
 }
 function studentLogout(){
