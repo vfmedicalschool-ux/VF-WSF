@@ -134,6 +134,9 @@ localStorage.setItem('_vf_active','1');
 // initApp은 아래 onAuthStateChanged에서 호출 (auth 상태 확인 후)
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 const TEACHER_EMAIL = 'vfmedicalschool@gmail.com';
+// 이메일 비교는 항상 이 함수를 거칠 것 (대소문자·공백 차이로 차단되는 사고 방지)
+function normEmail(e){return String(e||'').trim().toLowerCase();}
+function sameEmail(a,b){return normEmail(a)!==''&&normEmail(a)===normEmail(b);}
 
 // ── 데이터 상수 ──
 const STUDY_SUBS=["생물","화학","유기"],ALL_SUBS=["생물","화학","유기","생활관리"];
@@ -3755,7 +3758,7 @@ function buildGallery(){
   <div class="gal-grid">${cards}</div>`;
 }
 function galCard(s){
-  const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
+  const isTeacher=S.user&&sameEmail(S.user.email,TEACHER_EMAIL);
   const {key,data}=s;
   const name=data.name||'';
   const tab=S.galCardTabs[key]||'sub';
@@ -3869,17 +3872,17 @@ function buildStudentForm(){
   const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
   // studentInfo가 아직 로드 안 된 경우(Firestore 로딩 중) → 로딩 표시
   const infoLoaded=S.roster.length>0||Object.keys(S.studentInfo).length>0;
-  if(S.user.email!==TEACHER_EMAIL&&!infoLoaded){
+  if(!sameEmail(S.user.email,TEACHER_EMAIL)&&!infoLoaded){
     return `<div class="loading-wrap"><div class="spinner"></div>명단 확인 중...</div>`;
   }
-  const isStudentAllowed=S.user.email===TEACHER_EMAIL||allowedEmails.includes(S.user.email);
+  const isStudentAllowed=sameEmail(S.user.email,TEACHER_EMAIL)||allowedEmails.some(e=>sameEmail(e,S.user.email));
   if(!isStudentAllowed){
     return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px 20px;text-align:center"><div style="font-size:48px">⛔</div><div style="font-size:18px;font-weight:700;color:#1d1d1f">접근 권한 없음</div><div style="font-size:13px;color:#86868b;margin-bottom:4px">${esc(S.user.email)}</div><div style="font-size:12px;color:#86868b;margin-bottom:8px">선생님께 이 이메일 주소 등록을 요청해주세요.</div><button onclick="studentLogout()" style="padding:10px 24px;font-size:13px;font-weight:600;background:#f5f5f7;color:#1d1d1f;border:none;border-radius:10px;cursor:pointer">다른 계정으로 로그인</button></div>`;
   }
   // 이메일로 학생 이름 자동 매칭
   let isEmailMatched=false;
-  if(S.user.email!==TEACHER_EMAIL){
-    const matched=Object.entries(S.studentInfo).find(([n,info])=>info.email===S.user.email);
+  if(!sameEmail(S.user.email,TEACHER_EMAIL)){
+    const matched=Object.entries(S.studentInfo).find(([n,info])=>sameEmail(info.email,S.user.email));
     if(matched){if(!S.name)S.name=matched[0]; isEmailMatched=true;}
   }
   if(S.step==="done")return`<div class="done-wrap"><div class="done-card"><div style="font-size:44px;margin-bottom:16px">✅</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">제출 완료!</div><div style="font-size:13px;color:#6e6e73;line-height:1.8;margin-bottom:24px"><strong>${esc(S.name)}</strong> 학생의 ${esc(S.month)}월 ${esc(S.week)}주차<br>셀프피드백이 저장되었습니다.<br><br><span style="font-size:12px;color:#0071e3;line-height:1.9">홍성찬 선생님께서 확인 후 내일 오전 중으로<br>피드백 드릴 예정이니 조금만 기다려주세요 :)</span></div><button class="btn-ghost btn-sm" onclick="set({step:'form',subjects:{},nw:{},name:''})">새로 입력하기</button></div></div>`;
@@ -3988,6 +3991,8 @@ function buildInstructor(){
         <span style="color:#86868b">= 학생 ${Math.max(n-1,0)}명 + 강사 1명 · 명단(${inRoster.length}명)에 있는 학생만 포함됩니다.</span>
         ${noMail.length?`<div style="color:#c45400;margin-top:4px">⚠️ 이메일 미입력 ${noMail.length}명: ${noMail.slice(0,8).map(esc).join(', ')}${noMail.length>8?' 외':''} — 로그인해도 접속이 막힙니다.</div>`:''}
         ${stale.length?`<div style="color:#6e6e73;margin-top:4px">🚫 명단에서 빠져 접근 차단된 학생 ${stale.length}명: ${stale.slice(0,8).map(esc).join(', ')}${stale.length>8?' 외':''}</div>`:''}
+        ${(()=>{const bad=inRoster.filter(k=>{const e=S.studentInfo?.[k]?.email;return e&&(e!==e.trim()||/[A-Z]/.test(e)||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.trim()));});
+          return bad.length?`<div style="color:#c45400;margin-top:4px">✏️ 이메일 형식 확인 필요 ${bad.length}명: ${bad.map(k=>`${esc(k)}(${esc(S.studentInfo[k].email)})`).join(', ')} — 대문자·공백·오타가 있으면 로그인이 막힐 수 있습니다.</div>`:'';})()}
       </div>`;})()}
   </div>`;
 
@@ -4223,7 +4228,7 @@ function instructorLogin(){
   if(isWebView()){webViewAlert();return;}
   auth.signInWithPopup(googleProvider).then(result=>{
     const user=result.user;
-    if(user.email!==TEACHER_EMAIL){
+    if(!sameEmail(user.email,TEACHER_EMAIL)){
       auth.signOut();
       alert('접근 권한이 없습니다.\n' + TEACHER_EMAIL + ' 계정으로만 접근 가능합니다.');
     }else{set({mode:'instructor'});}
@@ -4240,9 +4245,9 @@ function studentLogin(){
   if(isWebView()){webViewAlert();return;}
   auth.signInWithPopup(googleProvider).then(result=>{
     const user=result.user;
-    if(user.email===TEACHER_EMAIL){set({});return;}
+    if(sameEmail(user.email,TEACHER_EMAIL)){set({});return;}
     const allowedEmails=Object.values(S.studentInfo).map(i=>i.email).filter(Boolean);
-    if(allowedEmails.includes(user.email)){set({});}
+    if(allowedEmails.some(e=>sameEmail(e,user.email))){set({});}
     else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.');}
   }).catch(e=>alert('로그인 실패: '+e.message));
 }
@@ -4259,7 +4264,7 @@ auth.onAuthStateChanged(async user=>{
   if(user){
     // 로그인한 사용자만 개인정보 로드. 프로필(상담내용)은 강사 전용.
     await loadEnneagram();
-    if(user.email===TEACHER_EMAIL){
+    if(sameEmail(user.email,TEACHER_EMAIL)){
       await loadProfiles();
       S.allowedEmails=await syncAllowedEmails();   // 명단 자동 동기화
     }else STUDENT_PROFILE={};
@@ -4293,7 +4298,7 @@ function render(){
   const _active=document.activeElement;
   const _isTyping=_active&&(_active.tagName==='INPUT'||_active.tagName==='TEXTAREA')&&document.getElementById('app')?.contains(_active)&&S.mode==='student';
   if(_isTyping){return;}
-  const isTeacher=S.user&&S.user.email===TEACHER_EMAIL;
+  const isTeacher=S.user&&sameEmail(S.user.email,TEACHER_EMAIL);
   const nav=`<nav class="nav"><div class="nav-inner"><button class="nav-tab${S.mode==="student"?" active":""}" onclick="set({mode:'student'})">🙋 학생용</button><button class="nav-tab${S.mode==="instructor"&&isTeacher?" active":""}" onclick="${isTeacher?"set({mode:'instructor'})":'instructorLogin()'}">👨‍🏫 선생님용 ${isTeacher?"🔓":"🔒"}</button><button class="nav-tab${S.mode==='gallery'?' active':''}" onclick="set({mode:'gallery'})">📚 피드백 보기</button>${isTeacher?'<button onclick="instructorLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">로그아웃</button>':(S.user&&!isTeacher)?'<button onclick="studentLogout()" style="margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07);color:#1d1d1f;border:none;border-radius:5px;cursor:pointer">🎓 '+S.user.email.split('@')[0]+' 로그아웃</button>':''}<span class="nav-badge">Firebase 연결됨</span></div></nav>`;
   let content;
   if(S.mode==="gallery"&&(S.user||isTeacher)){content=buildGallery();}
