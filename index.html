@@ -3090,11 +3090,13 @@ function saveFormDraftManual(){
     setTimeout(()=>set({formDraftSaved:false}),2500);
   }catch(e){}
 }
+const WEEKS_PER_MONTH=4;   // ★ 한 달은 4주 고정 (7월 4주차 다음은 8월 1주차)
+const MONTH_SEQ=['7','8','9','10','11','12','1'];
 function prevMonthNum(m){const n=Number(m);return n===1?12:n-1;}
 // month/week 에서 n주 전의 {m,w} 계산
 function stepBack(month,week,n){
   let m=Number(month),w=Number(week);
-  for(let i=0;i<n;i++){ w--; if(w<1){ m=prevMonthNum(m); w=4; } }
+  for(let i=0;i<n;i++){ w--; if(w<1){ m=prevMonthNum(m); w=WEEKS_PER_MONTH; } }
   return {m,w};
 }
 async function loadOne(name,month,week,n){
@@ -3194,6 +3196,8 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRe
   const subjectBlock=ALL_SUBS.map(s=>{const d=subjects?.[s]||{};return`■ ${s}\n학습내용: ${d.study||"(없음)"}\n잘한점: ${d.good||"(없음)"}\n보완할점: ${d.improve||"(없음)"}`}).join("\n\n");
   const nextBlock=nw?`[다음주 목표]\n생물 — 단원: ${nw.생물_단원||"-"} | 강의: ${nw.생물_강의||"-"} | 문제: ${nw.생물_문제||"-"}\n화학 — 단원: ${nw.화학_단원||"-"} | 강의: ${nw.화학_강의||"-"} | 문제: ${nw.화학_문제||"-"}\n유기 — 단원: ${nw.유기_단원||"-"} | 강의: ${nw.유기_강의||"-"} | 문제: ${nw.유기_문제||"-"}\n다짐: ${nw.다짐||"(없음)"}`:""
   const prof=STUDENT_PROFILE[name]||"";
+  // 프로필이 없을 때(미업로드·이름 불일치 등) 근거 없는 진도 판단을 막는 안전장치
+  const noProfBlock=prof?"":`\n## ⚠️ 이 학생의 개별 상담 프로필이 없습니다\n- **진도가 빠르다/느리다는 판단을 하지 마세요.** 학생마다 목표 기한이 다른데 기준 데이터가 없습니다. "7월이 끝나가는데 늦었다" 같은 표현 금지.\n- 학생이 스스로 "진도가 느린 것 같다"고 쓴 경우에만, 판정하지 말고 방법 위주로 답하세요.\n- 개인 이력(재수·PEET 경험·직장 병행 등)도 추측하지 마세요.\n`;
   const profBlock=prof?`\n## ★ ${name} 학생 사전상담 프로필 (7월 시작 시점의 베이스라인) ★\n※ 우선순위 주의: 위에 저번주 기록이 있다면 **그쪽이 우선**입니다. 상담은 출발점이고, 실제 지도는 매주 피드백으로 갱신됩니다. 상담 내용과 최근 피드백이 어긋나면 최근 피드백을 따르세요. 이 프로필은 학생의 배경·목표·초기 약속을 파악하는 용도입니다.\n\n${prof}\n\n→ ★★ 활용 원칙 — 순서대로 판단하세요 ★★\n\n**[0] 가장 중요: 상담 내용은 "기준"이지 "규정"이 아닙니다.**\n매주 학생의 상황은 바뀝니다. 상담 기록만으로 판단하면 현실과 안 맞는 피드백이 나옵니다. 그래서 판단 순서가 있습니다.\n\n**(1) 학생이 스스로 방법을 찾아 교정한 부분은 최대한 인정하고 칭찬하세요. 이게 최우선입니다.**\n학생이 능동적으로 공부법이나 생활관리 방식을 바꿨다면, 그게 상담 때 정한 것과 형태가 다르더라도 **그 자체를 성장으로 인정**해주세요. 스스로 점검하고 조정하는 능력이 붙는 것이 상담 때 정한 형식을 지키는 것보다 훨씬 중요합니다.\n- 예: 상담 때 "아침 운동"으로 잡았는데 학생이 "아침 운동은 다음날 더 피곤해서 저녁 운동으로 바꿔봤더니 좋았다"고 썼다면 → 절대 "상담 때 아침 운동으로 정했었죠?"라고 하지 마세요. → "스스로 실험해보고 본인에게 맞는 걸 찾은 것 아주 좋습니다!"로 인정.\n- 예: 상담 때 정한 교재 순서를 학생이 자기 상황에 맞게 조정했는데 방향성이 어긋나지 않는다면 → 인정하고 격려.\n\n**(2) 단, 홍쌤이 상담에서 "반드시 ~하라" 또는 "절대 ~하지 마라"라고 못 박은 항목은 예외입니다. 이건 방향을 분명히 잡아주세요.**\n프로필 문구에 "필수", "반드시", "절대", "금지", "하지 말 것", "~까지 완료" 같은 강한 표현이 붙어 있으면 그건 타협 대상이 아닙니다. 대표적으로 운동 횟수, 최소 수면 시간, 과목별 완강 기한, 스킵하기로 한 범위, 공부 공간과 휴식 공간 분리 등이 여기 해당하는 경우가 많습니다.\n- 이때도 질책이 아니라 이유와 함께: "상담 때 운동 주 3회로 잡았던 건 이게 멘탈 유지의 핵심 도구이기 때문이에요. 이번주 1회면 조금 밀렸으니 다시 붙여봅시다."\n- 그리고 학생이 못 지키고 있다면 원인을 제거하는 **다른 방법**을 제시하세요. 같은 방법을 반복 지시하면 또 못 지킵니다.\n\n**(3) ★ 진도 지연 판단은 반드시 이 학생의 개인 커리큘럼 기준으로 하세요. 이것이 프로필의 가장 중요한 용도입니다.**\n[과목별 커리큘럼]은 이 학생 전용 계획이며, 학생마다 기한과 경로가 다릅니다. 다른 학생 기준으로 판단하면 안 됩니다.\n판단 절차:\n1. 프로필에서 해당 과목의 **목표 시점**을 찾으세요. (예: "1500제 완강 늦어도 7월까지, 복습 8월 13일까지" / "스미스 셀프 1회독 후 2회독, 8월 말~9월 초에 풀케어반 커리큘럼 합류" / "2000제 8월 중순~10월")\n2. **지금이 ${month}월 ${week}주차**임을 기준으로, 목표 시점까지 남은 기간을 계산하세요.\n3. 학생이 이번주 제출한 진도가 그 남은 기간 안에 목표에 도달할 속도인지 추론하세요.\n4. 늦다고 판단되면 구체적인 근거와 함께 짚어주세요. 예: "7월이 거의 끝나가는데 아직 입체화학이면 조금 늦어요. 매일 시간을 조금 더 들여서 속도를 내야겠습니다." / "1500제 완강이 7월까지인데 지금 5·6장이면 남은 기간이 빠듯해요."\n5. 반대로 계획대로거나 앞서 있으면 그 사실을 확인해주며 안심시키세요. 예: "이 속도면 8월 말 목표에 충분히 맞습니다. 지금처럼만 가면 돼요."\n※ 커리큘럼 문서의 공통 일정이 아니라 **이 학생 프로필에 적힌 개인 기한**이 기준입니다. 프로필에 기한이 없는 과목은 진도 지연 판단을 하지 마세요.\n\n**(4) 배경 정보는 자연스러운 맥락에서만.**\n[지원 전략]의 목표 학교·GPA·이력(재수, PEET 경험, 직장 병행 등)을 알고 있다는 게 드러나면 학생이 "홍쌤이 나를 알고 있다"고 느낍니다. 예: "PEET 유기도 했었으니 편입 유기는 충분히 해낼 수 있어요!"\n\n**(5) 프로필을 나열하듯 옮겨 쓰지 마세요.** 이번주 제출 내용과 맞닿는 지점에서만 꺼내 씁니다. 전체 피드백에서 상담 언급은 2~3회면 충분합니다.\n`:"";
   let prevBlock="";
   if(prevRecord){
@@ -3648,7 +3652,7 @@ ${ENN_DATA[trait].c}
 
 ${prevBlock}
 ${prev2Block}
-${profBlock}
+${profBlock}${noProfBlock}
 ${nextBlock}
 ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
 ## 과목별 핵심 교재·컨텐츠 정보 (피드백에 정확하게 활용)
@@ -3775,7 +3779,7 @@ function buildGallery(){
     .filter(s=>!S.galStudent||s.data.name===S.galStudent)
     .sort((a,b)=>(a.data.name||'').localeCompare(b.data.name||'','ko'));
   const monthOpts=months.map(m=>`<option value="${m}" ${S.galMonth==m?'selected':''}>${m}월</option>`).join('');
-  const weekOpts=[1,2,3,4,5].map(w=>`<option value="${w}" ${S.galWeek==w?'selected':''}>${w}주차</option>`).join('');
+  const weekOpts=[1,2,3,4].map(w=>`<option value="${w}" ${S.galWeek==w?'selected':''}>${w}주차</option>`).join('');
   const nameOpts='<option value="">전체 학생</option>'+allNames.map(n=>`<option value="${n}" ${S.galStudent===n?'selected':''}>${n}${S.studentInfo[n]?.trait?' ('+S.studentInfo[n].trait+')':''}</option>`).join('');
   const cards=items.length===0
     ?`<div class="gal-empty"><div style="font-size:40px;margin-bottom:10px">📭</div><div style="font-weight:700;margin-bottom:4px">${S.galMonth}월 ${S.galWeek}주차 제출 내역이 없어요</div><div style="font-size:13px;color:#86868b">다른 주차를 선택해보세요</div></div>`
@@ -3946,7 +3950,7 @@ function buildStudentForm(){
   <div class="card"><div class="card-head">기본 정보</div>
     <div class="g3" style="margin-bottom:10px">
       <div><span class="lbl">이름</span>${isEmailMatched?`<span style="font-weight:600;font-size:14px;color:#1d1d1f;padding:4px 0;display:inline-block">${esc(S.name)}</span>`:`<select id="name-select" onchange="set({name:this.value})">${rosOpts}</select>`}</div>
-      <div><span class="lbl">월</span><select onchange="set({month:this.value})">${opt(["7","8","9","10","11","12"].map(m=>[m,m+"월"]),S.month)}</select></div>
+      <div><span class="lbl">월</span><select onchange="set({month:this.value})">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),S.month)}</select></div>
       <div><span class="lbl">주차</span><select onchange="set({week:this.value})">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),S.week)}</select></div>
     </div>
   </div>
@@ -3985,7 +3989,7 @@ function buildInstructor(){
   const apiSection=`<div class="apikey-box"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600;color:#0059b3">🔑 API 키 &nbsp; ${apiStatus}</div><button class="btn-ghost btn-sm" onclick="set({showKey:!S.showKey})">${S.showKey?"닫기":"설정"}</button></div>${S.showKey?`<div style="display:flex;gap:6px;margin-top:9px"><input type="password" id="api-input" value="${esc(S.apiKey)}" placeholder="sk-ant-api03-..."><button class="btn-blue btn-sm" onclick="saveApiKey()" style="white-space:nowrap">저장</button></div>`:""}</div>`;
 
   // ── 주차 잠금 관리 ──
-  const months=['7','8','9','10','11','12'];
+  const months=['7','8','9','10','11','12','1'];
   const lockRows=months.map(m=>['1','2','3','4'].map(w=>{
     const k=m+'-'+w;
     const locked=S.lockedWeeks.includes(k);
@@ -3999,7 +4003,7 @@ function buildInstructor(){
   const submittedNames=new Set(S.subs.filter(s=>String(s.data.month)===S.checkMonth&&String(s.data.week)===S.checkWeek).map(s=>s.data.name));
   const notSubmitted=S.roster.filter(n=>!submittedNames.has(n));
   const submitted=S.roster.filter(n=>submittedNames.has(n));
-  const absentCard=S.roster.length>0?`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">📊 제출 현황</div><div style="display:flex;gap:6px;align-items:center"><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkMonth:this.value})">${["7","8","9","10","11","12"].map(m=>`<option value="${m}"${m===S.checkMonth?" selected":""}>${m}월</option>`).join("")}</select><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkWeek:this.value})">${["1","2","3","4"].map(w=>`<option value="${w}"${w===S.checkWeek?" selected":""}>${w}주</option>`).join("")}</select></div></div><div style="display:flex;gap:8px;margin-bottom:${notSubmitted.length>0?12:0}px"><div style="flex:1;background:#e8f9ed;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a7a3a">${submitted.length}</div><div style="font-size:11px;color:#2e8b57;margin-top:2px">제출 완료</div></div><div style="flex:1;background:${notSubmitted.length>0?"#fff5f5":"#f5f5f7"};border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"}">${notSubmitted.length}</div><div style="font-size:11px;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"};margin-top:2px">미제출</div></div><div style="flex:1;background:#f0f0f2;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#3a3a3c">${S.roster.length}</div><div style="font-size:11px;color:#6e6e73;margin-top:2px">전체</div></div></div>${notSubmitted.length>0?`<div style="background:#fff5f5;border-radius:10px;padding:11px 14px"><div style="font-size:11px;font-weight:600;color:#c0392b;margin-bottom:8px">⚠️ 미제출자 (${notSubmitted.length}명)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${notSubmitted.map(n=>`<span style="background:#fde8e8;color:#c0392b;border-radius:20px;padding:3px 11px;font-size:12px;font-weight:500">${esc(n)}</span>`).join("")}</div></div>`:`<div style="background:#e8f9ed;border-radius:10px;padding:10px 14px;text-align:center;font-size:12px;color:#1a7a3a;font-weight:600">🎉 ${S.checkMonth}월 ${S.checkWeek}주차 전원 제출 완료!</div>`}</div>`:"";
+  const absentCard=S.roster.length>0?`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">📊 제출 현황</div><div style="display:flex;gap:6px;align-items:center"><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkMonth:this.value})">${["7","8","9","10","11","12","1"].map(m=>`<option value="${m}"${m===S.checkMonth?" selected":""}>${m}월</option>`).join("")}</select><select style="width:auto;padding:5px 9px;font-size:12px;border-radius:7px" onchange="set({checkWeek:this.value})">${["1","2","3","4"].map(w=>`<option value="${w}"${w===S.checkWeek?" selected":""}>${w}주</option>`).join("")}</select></div></div><div style="display:flex;gap:8px;margin-bottom:${notSubmitted.length>0?12:0}px"><div style="flex:1;background:#e8f9ed;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1a7a3a">${submitted.length}</div><div style="font-size:11px;color:#2e8b57;margin-top:2px">제출 완료</div></div><div style="flex:1;background:${notSubmitted.length>0?"#fff5f5":"#f5f5f7"};border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"}">${notSubmitted.length}</div><div style="font-size:11px;color:${notSubmitted.length>0?"#c0392b":"#aeaeb2"};margin-top:2px">미제출</div></div><div style="flex:1;background:#f0f0f2;border-radius:10px;padding:11px;text-align:center"><div style="font-size:22px;font-weight:700;color:#3a3a3c">${S.roster.length}</div><div style="font-size:11px;color:#6e6e73;margin-top:2px">전체</div></div></div>${notSubmitted.length>0?`<div style="background:#fff5f5;border-radius:10px;padding:11px 14px"><div style="font-size:11px;font-weight:600;color:#c0392b;margin-bottom:8px">⚠️ 미제출자 (${notSubmitted.length}명)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${notSubmitted.map(n=>`<span style="background:#fde8e8;color:#c0392b;border-radius:20px;padding:3px 11px;font-size:12px;font-weight:500">${esc(n)}</span>`).join("")}</div></div>`:`<div style="background:#e8f9ed;border-radius:10px;padding:10px 14px;text-align:center;font-size:12px;color:#1a7a3a;font-weight:600">🎉 ${S.checkMonth}월 ${S.checkWeek}주차 전원 제출 완료!</div>`}</div>`:"";
 
   // ── 학생 프로필 상태 (강사 전용) ──
   const pCnt=Object.keys(STUDENT_PROFILE||{}).length, eCnt=Object.keys(STUDENT_ENNEAGRAM||{}).length;
@@ -4065,8 +4069,8 @@ function buildInstructor(){
     const d=S.sel.data,prev=S.prevData;
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
-    detailHTML=`<div>${prevSection}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div><button class="btn-ghost btn-sm" onclick="set({editMW:!S.editMW})">${S.editMW?"취소":"✏️ 월/주차 수정"}</button></div>${S.editMW?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:13px;background:#f5f5f7;border-radius:9px;padding:10px 12px"><span style="font-size:12px;color:#6e6e73;white-space:nowrap">월/주차 변경:</span><select id="edit-month" style="width:auto">${opt(["7","8","9","10","11","12"].map(m=>[m,m+"월"]),d.month)}</select><select id="edit-week" style="width:auto">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),d.week)}</select><button class="btn-blue btn-sm" onclick="updateMW()" style="white-space:nowrap">저장</button></div>`:""}<div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
-    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
+    detailHTML=`<div>${prevSection}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div><button class="btn-ghost btn-sm" onclick="set({editMW:!S.editMW})">${S.editMW?"취소":"✏️ 월/주차 수정"}</button></div>${S.editMW?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:13px;background:#f5f5f7;border-radius:9px;padding:10px 12px"><span style="font-size:12px;color:#6e6e73;white-space:nowrap">월/주차 변경:</span><select id="edit-month" style="width:auto">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),d.month)}</select><select id="edit-week" style="width:auto">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),d.week)}</select><button class="btn-blue btn-sm" onclick="updateMW()" style="white-space:nowrap">저장</button></div>`:""}<div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
+    ${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
     ${!S.generating&&S.generated?`${(()=>{const dk='_vf_fb_draft_'+(S.sel?.key||'');const saved=dk?localStorage.getItem(dk):null;return saved&&saved!==S.generated?'<div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="loadFeedbackDraft()" style="background:#f0a500;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';})()} <textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="saveFeedbackDraft()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap">${S.fbDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
@@ -4369,6 +4373,23 @@ auth.onAuthStateChanged(async user=>{
   if(user&&!_appInited){_appInited=true;initApp();}
 });
 
+// 생성 전 신뢰 위험 사전 점검 (강사 화면 배지)
+function trustWarnings(item){
+  if(!item)return [];
+  const d=item.data,W=[];
+  if(!STUDENT_PROFILE[d.name])W.push(['프로필 없음','개인 기한 기반 진도 판단이 빠집니다. 이름 표기가 다르거나 업로드가 안 됐을 수 있어요.']);
+  const p1=S.prevData,p2=S.prevData2;
+  if(!p1)W.push(['저번주 기록 없음','지난 피드백 연계·전수 점검이 통째로 빠집니다.']);
+  else{
+    const gap=(Number(d.month)-Number(p1.month))*4+(Number(d.week)-Number(p1.week));
+    if(gap>1)W.push([`직전 주 결번 (${p1.month}월 ${p1.week}주차가 들어감)`,'시점을 "저번주"로 잘못 쓰지 않는지 생성 후 꼭 확인하세요.']);
+    if(!p1.feedbackApproved)W.push(['저번주 피드백 미승인','지난 피드백 전문이 빠져 연계가 약해집니다.']);
+  }
+  if(p2&&!p2.feedbackApproved)W.push(['2주 전 피드백 미승인','성장 흐름 언급이 빠집니다.']);
+  const info=S.studentInfo[d.name]||{};
+  if(!(info.trait||STUDENT_ENNEAGRAM[d.name]))W.push(['에니어그램 미등록','유형별 코칭이 빠집니다.']);
+  return W;
+}
 function copyFeedback(){navigator.clipboard?.writeText(S.generated).then(()=>{set({copied:true});setTimeout(()=>set({copied:false}),2000)})}
 
 // ── 렌더 ──
