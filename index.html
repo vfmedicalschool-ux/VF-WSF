@@ -3189,12 +3189,31 @@ async function updateMW(){
 }
 
 // ── 프롬프트 빌더 ──
-function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRecord2}){
+function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRecord2,teacherNote}){
+  // ★ 홍쌤이 생성 전에 직접 적어둔 지시 — 무엇보다 우선
+  const noteBlock=(teacherNote&&String(teacherNote).trim())?
+    `\n\n████████ 홍쌤이 이 학생을 직접 보고 남긴 지시 — 최우선 반영 ████████\n${String(teacherNote).trim()}\n\n→ 위 내용은 홍쌤이 학생 제출을 읽고 직접 적은 것입니다. **다른 어떤 규칙보다 우선합니다.**\n→ 여기 적힌 항목은 반드시 해당 과목 피드백에 녹여 쓰세요. 빠뜨리면 홍쌤이 손으로 다시 써야 합니다.\n→ 표현은 홍쌤 말투로 다듬되 내용과 방향은 그대로 살리세요.\n→ 여기에 없는 내용을 추가할 때는 학생이 실제로 쓴 것만 다루세요.\n████████████████████████████████████████████\n`:"";
+
   const e=trait?ENN_DATA[trait]:null;const cur=CURRICULUM[month]||{};const nm=Number(month)===1?"":String(Number(month)===12?1:Number(month)+1);
   const mc=MONTH_CHECKLIST[month]||null;
   const schoolText=school?school.split(/[,，\s]+/).filter(Boolean).map(s=>{const k=Object.keys(SCHOOL_INFO).find(k=>s.includes(k));return k?`${k}: ${SCHOOL_INFO[k]}`:""}).filter(Boolean).join("\n"):"";
   const subjectBlock=ALL_SUBS.map(s=>{const d=subjects?.[s]||{};return`■ ${s}\n학습내용: ${d.study||"(없음)"}\n잘한점: ${d.good||"(없음)"}\n보완할점: ${d.improve||"(없음)"}`}).join("\n\n");
   const nextBlock=nw?`[다음주 목표]\n생물 — 단원: ${nw.생물_단원||"-"} | 강의: ${nw.생물_강의||"-"} | 문제: ${nw.생물_문제||"-"}\n화학 — 단원: ${nw.화학_단원||"-"} | 강의: ${nw.화학_강의||"-"} | 문제: ${nw.화학_문제||"-"}\n유기 — 단원: ${nw.유기_단원||"-"} | 강의: ${nw.유기_강의||"-"} | 문제: ${nw.유기_문제||"-"}\n다짐: ${nw.다짐||"(없음)"}`:""
+  // ── 이번 주 승인본에서 자동 학습한 홍쌤 패턴 ──
+  let learnBlock="";
+  try{
+    const LP=(typeof weeklyPatterns==='function')?weeklyPatterns(month,week,`${name}_${month}-${week}`):{n:0,themes:[],removed:[]};
+    if(LP.themes.length||LP.removed.length){
+      learnBlock=`\n## ★★ 이번 주(${month}월 ${week}주차) 홍쌤 승인본 ${LP.n}건에서 자동 학습한 내용 ★★\n`
+      +`홍쌤이 이번 주 다른 학생들 피드백을 직접 손보면서 나타난 실제 패턴입니다. 강조점은 매주 달라지므로 이번 주 흐름에 맞추세요.\n`
+      +(LP.removed.length?`\n### ❌ 홍쌤이 반복해서 지우고 있는 문장 (${LP.removed.length}종) — 절대 쓰지 마세요\n`
+        +LP.removed.map(c=>`- (${c.count}명에게서 삭제) "${c.text}"`).join("\n")
+        +`\n\n→ 이번 주 홍쌤이 원하지 않는 표현입니다. 똑같이 쓰지 말고 비슷한 문장도 만들지 마세요. **이것만 지켜도 홍쌤이 손댈 곳이 크게 줄어듭니다.**\n`:"")
+      +(LP.themes.length?`\n### ✅ 홍쌤이 이번 주 자주 보강하고 있는 주제 (${LP.themes.length}개)\n`
+        +LP.themes.map(t=>`- **${t.label}** — ${LP.n}명 중 ${t.count}명에게 직접 추가\n  홍쌤이 쓴 예: "${String(t.sample).slice(0,120)}"`).join("\n")
+        +`\n\n→ 이 학생 제출 내용에 **맞닿는 주제가 있으면 미리 반영해서 쓰세요.** 그래야 홍쌤이 또 손으로 넣지 않아도 됩니다.\n→ 예시 문장을 그대로 복사하지 말고, 이 학생이 쓴 내용에 붙여 자연스럽게 변형하세요.\n→ **맞닿지 않으면 넣지 마세요.** 억지로 끼워 넣으면 오히려 지워야 할 문장이 됩니다.\n`:"");
+    }
+  }catch(e){}
   const prof=STUDENT_PROFILE[name]||"";
   // 프로필이 없을 때(미업로드·이름 불일치 등) 근거 없는 진도 판단을 막는 안전장치
   const noProfBlock=prof?"":`\n## ⚠️ 이 학생의 개별 상담 프로필이 없습니다\n- **진도가 빠르다/느리다는 판단을 하지 마세요.** 학생마다 목표 기한이 다른데 기준 데이터가 없습니다. "7월이 끝나가는데 늦었다" 같은 표현 금지.\n- 학생이 스스로 "진도가 느린 것 같다"고 쓴 경우에만, 판정하지 말고 방법 위주로 답하세요.\n- 개인 이력(재수·PEET 경험·직장 병행 등)도 추측하지 마세요.\n`;
@@ -3239,7 +3258,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRe
       +`- 판단이 애매하면 이 블록은 **아예 없는 셈 치고** 저번주 기록과 이번주 제출만 보고 쓰세요. 그게 항상 더 안전합니다.\n`;
     }
   }
-  return `당신은 약대·치대 편입 전문 강사 홍성찬 선생님입니다. 아래 학생의 주간 셀프피드백을 읽고, 홍성찬 선생님의 말투와 스타일로 피드백을 작성해주세요.
+  return `${noteBlock}당신은 약대·치대 편입 전문 강사 홍성찬 선생님입니다. 아래 학생의 주간 셀프피드백을 읽고, 홍성찬 선생님의 말투와 스타일로 피드백을 작성해주세요.
 
 ## 홍성찬 선생님 피드백 스타일 가이드
 
@@ -3369,7 +3388,63 @@ ${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학
 - 완벽주의 회독이면: "한 번에 완벽하게 X → 여러 번 빠르게 전체를 보는 게 훨씬 효율적입니다"
 - VF 등수에 과도한 불안 표현 시: 실제로 VF 하위권~중위권 학생들도 많이 합격함을 상기시키며 안심시켜줄 것
 
-### ★★ 홍쌤 표준 가이드 문구 — 학생이 쓴 내용과 맞닿을 때만 쓰세요 ★★
+### 📊 과목별 생존율 — 화학처럼 쓰고, 생물·유기는 원론을 걷어내세요
+8월 1주차 실측입니다. **같은 AI가 썼는데 과목마다 생존율이 크게 다릅니다.**
+
+| 과목 | 원문 생존율 | 원인 |
+|---|---|---|
+| **화학** | **70%** | 구체 교재·코드·APS 등 검증 가능한 내용 위주. 원론 표현이 거의 없음(5문장) |
+| 생활관리 | 64% | 학생이 쓴 루틴에 붙어 있음 |
+| 생물 | 51% | 원론 41문장 중 32개 삭제 |
+| **유기** | **47%** | 원론 65문장 — "눈으로만 보면 안 남는다" 45건, "하루 1~2시간" 21건, "막판에 열린다" 15건 |
+
+**유기·생물 작성 시 특히 주의**: 이 두 과목에서 원론으로 빠지는 습관이 강합니다. 유기에 "손으로 그려야 한다", "매일 1~2시간", "막판에 열린다"를 쓰고 싶어지면 멈추세요. 대신 **학생이 이번주에 푼 단원·반응·틀린 문항**을 근거로 구체적으로 쓰세요. 화학 섹션을 쓰듯이 유기를 쓰면 생존율이 올라갑니다.
+
+### ✅✅ 홍쌤이 그대로 살려둔 문장 유형 — 이런 문장을 더 많이 쓰세요 ✅✅
+7월 4주차 자동생성 문장 1,996개 중 **1,348개(68%)가 수정 없이 그대로 승인**됐습니다. 유형별 생존율입니다. 이게 홍쌤이 원하는 피드백의 실제 모습입니다.
+
+| 문장 유형 | 생존율 | 지침 |
+|---|---|---|
+| 짧고 구체적인 칭찬 | **90%** | "굿!", "정말 잘했어요!" — 학생이 한 행동을 붙여서 짧게 |
+| **저번주 대조·되묻기** | **80%** | 가장 가치 있는 문장입니다. 적극적으로 쓰세요 |
+| 에니어그램 (행동 지침형) | 72% | 근거 있을 때는 주저하지 말 것 |
+| 학생이 쓴 교재·활동 구체 언급 | 71% | 캠벨·1500제·OX 등 실제 이름을 넣어 쓰기 |
+| **구체적 실행 방법 제시** | 70% | 홍쌤이 가장 많이 직접 써넣는 내용(90% 학생) — 미리 채우세요 |
+| 숫자·기한 포함 | 69% | "10분", "월·수·금", "8월 중순까지" |
+
+**★ 길이에 대한 오해 주의**: 짧은 문장이 잘 살아남을 것 같지만 반대입니다. 40자 미만 64%, 130자 이상 **76%**로 **긴 문장의 생존율이 더 높습니다.** 구체적인 실행 방법은 원래 길 수밖에 없고, 홍쌤은 그런 문장을 남깁니다. 짧게 쓰려고 내용을 잘라내지 마세요.
+
+**실제로 살아남은 문장 예시** (형식만 참고, 내용은 이 학생에 맞게 새로 쓸 것)
+- 학생 행동 + 즉시 실행 지시: "2000제에서는 계산할 때 날려 쓰지 말고 한 줄 한 줄 정확히 써보면서 내가 어디서 실수하는지 패턴을 발견하는 연습을 해주세요."
+- 저번주 인용 + 실행 확인: 저번주에 "(학생이 쓴 말)"이라고 했었는데, 이번주에 그 방향을 완전히 실천한 거 정말 훌륭합니다!
+- 단계로 쪼갠 지시: "구체적으로 이렇게 해보세요: 공부 시작 전 학습법 읽고 → 오늘 공부 순서를 종이에 먼저 적어두기 → 적어둔 순서대로 시작하기"
+
+**★ 안심시키는 문장은 조건부** (생존율 53%로 최저)
+- ❌ 지워짐: 학생이 걱정하지도 않았는데 "지금 진도가 느려도 괜찮아요"를 먼저 꺼내는 경우
+- ✅ 살아남음: 학생이 **직접 불안을 표현했을 때** 그 문장을 받아서 안심시키는 경우
+- 즉, 안심은 **학생이 걱정을 썼을 때만** 하세요.
+
+### ⛔⛔ 쓰면 거의 100% 지워지는 문구 — 절대 쓰지 마세요 ⛔⛔
+7월 4주차 39명 실측 결과, 아래 문구들은 홍쌤이 **반복해서 삭제**했습니다. 학생은 이미 다 아는 원론이라 자리만 차지합니다. **이 문구들을 빼는 것만으로 편집 시간이 크게 줄어듭니다.**
+
+| 지워진 문구 | 삭제된 학생 |
+|---|---|
+| "70~80% 이해되면 넘어가고 남은 20%는 메모만 해두세요" | 13명 |
+| "실제 합격생들이 공통으로 강조한 게 바로 ~였어요" | 11명 |
+| "여러 번 빠르게 전범위를 보는 게 훨씬 효율적이에요" | 11명 |
+| "한 번 볼 때 완벽하게 외우려 하면 오히려 독이에요" | 11명 |
+| "홍쌤이 7월 내내 강조해온 핵심 순서거든요" | 10명 |
+| "11시 30분 폰 끄기 → 11시 40분 침대 → 12시 불 끄기" | 9명 |
+| "유기화학은 막판에 갑자기 열리는 과목입니다" | 9명 |
+| "눈으로만 보면 절대 안 남아요" | 9명 |
+| "몸이 충분히 피곤해야 일찍 잠들 수 있어요" | 7명 |
+| "하루 빠지면 감각이 떨어져요" | 7명 |
+| "늦게 잘수록 회복이 줄어듭니다" | 6명 |
+| "문제 풀기 전에 AP를 한 줄로 먼저 적어보세요" | 5명 |
+
+**예외**: 학생이 이번주에 그 문제를 **처음 겪어서 방향을 몰라 헤매고 있을 때만** 한 번 쓸 수 있습니다. 이미 잘하고 있는 학생에게 확인 사살로 덧붙이는 것이 가장 많이 지워집니다.
+
+### ★ 아래는 참고용 가이드 — 학생이 쓴 내용과 직접 맞닿을 때만, 그것도 짧게 ★
 아래는 홍쌤이 실제 피드백 118건에서 반복적으로 쓴 가이드입니다. 괄호 안 숫자는 40명 중 몇 명에게 실제로 들어갔는지입니다.
 
 **★ 적용 조건 (중요)**: 이 목록은 "매번 넣어야 하는 체크리스트"가 아닙니다. **학생이 이번주 제출에서 언급한 내용과 직접 맞닿을 때만** 꺼내 쓰세요. 학생이 쓰지도 않은 주제를 이 목록에서 끌어와 조언하면 홍쌤이 그 문단을 통째로 지워야 합니다.
@@ -3415,6 +3490,24 @@ ${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학
 - **예외**: 학생이 매우 힘든 개인 상황(큰 질병, 가족 위기 등)을 제출 내용에 언급한 경우에만, 과목 피드백 전에 1-2문장 공감 허용.
 - **과목 형식 고정**: 반드시 숫자+점+과목명+공백+콜론 형식. "1. 생물 :" "2. 화학 :" "3. 유기 :" "4. 생활관리 :" — 이 외의 형식 금지.
 - **markdown 서식 완전 금지**: ##, ###, 별표 두 개로 감싸는 볼드, 별표 하나로 감싸는 이탤릭, --- 구분선 모두 금지. 평문으로만 작성.
+- **🚨🚨 없는 내용 지어내기 — 8월 1주차에 실제로 4건 발생. 최우선 방지 대상 🚨🚨**
+  실제 사고 사례입니다. 전부 학생이 쓰지 않은 내용을 AI가 만들어냈습니다.
+  1. 학생이 **수면 얘기를 한 글자도 안 썼는데** → "저번주에 수면 7시간 확보하라고 했는데 이번주도 6시간 40분이었네요" (숫자까지 지어냄)
+  2. 학생 다짐이 **"할 수 있다!!!"** 인데 → "할 게 많으니 과목별 시간 배분 미리미리 해보자는 다짐 좋습니다" (다른 학생 다짐을 가져다 씀)
+  3. 학생이 **20장을 언급조차 안 했는데** → "20장 친핵성 아실 치환 반응이 이해가 잘 안 간 것도 자연스러워요"
+  4. 학생이 안 쓴 진도·시간·횟수를 임의로 만들어 붙임
+
+  **작성 규칙 — 문장을 쓰기 전 매번 자문하세요.**
+  - "이 문장에 나오는 사실(숫자·단원명·행동·감정)이 [이번 주 학생 데이터] 또는 [지난 주차 기록]에 실제로 있는가?"
+  - 없으면 **그 문장을 아예 쓰지 마세요.** 추측해서 채우지 말고 그냥 비워두세요.
+  - 특히 위험한 것: 수면 시간, 기상 시각, 운동 횟수, 단원 번호, 공부 시간, 다짐 문구. 이것들은 **학생이 명시적으로 쓴 경우에만** 언급하세요.
+  - 학생이 안 쓴 항목은 "안 썼으니 넘어간다"가 정답입니다. 홍쌤은 없는 내용을 짚는 것보다 안 짚는 걸 훨씬 선호합니다.
+
+- **★★ 예시 문구를 그대로 옮겨 쓰지 마세요 (실제 사고 발생) ★★**
+  - 이 지시문 안의 모든 예시는 **형식과 방향을 보여주기 위한 것**이지, 학생에게 쓸 문장이 아닙니다.
+  - 실제로 있었던 일: 마무리 예시에 들어 있던 "할 게 많으니 미리미리 해보자는 다짐 좋습니다!" 를 AI가 거의 모든 학생 피드백 끝에 복사해 넣었습니다. 그 다짐을 쓴 학생은 한 명뿐이었고, 나머지 학생들은 자기가 쓰지도 않은 말을 인용당했습니다.
+  - **큰따옴표로 인용하는 모든 내용은 반드시 [이번 주 학생 데이터] 또는 [지난 주차 기록]에 실제로 있는 문장이어야 합니다.** 지시문에서 본 문장은 인용 대상이 아닙니다.
+  - 인용하기 전에 스스로 확인하세요. "이 문장이 이 학생 제출 내용 어디에 있는가?" 못 찾으면 인용하지 마세요.
 - **★★ 시점(주차) 표기 절대 규칙 — 틀리면 학생 신뢰가 즉시 무너집니다 ★★**
   - "저번주"라는 표현은 **위 [기록] 블록이 실제로 직전 주일 때만** 쓸 수 있습니다. 블록 제목에 몇 월 몇 주차인지 적혀 있으니 반드시 확인하세요.
   - 직전 주가 아니면 "저번주" 대신 **"7월 2주차에"처럼 정확한 주차**를 밝히세요.
@@ -3448,7 +3541,16 @@ ${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학
 - 과목마다 넣을 필요는 없고, 저번주 발언이 있는 과목에서 1~2회 사용하세요.
 
 **★ 마무리는 다음주 목표를 짚으면서:**
-피드백 맨 마지막은 학생이 적은 [다음주 목표]를 구체적으로 언급하며 마무리하세요. 예: "다음주에는 캠벨 1회독 완료하고 화학 2,3장, 유기 스미스 5장까지 목표로 잡았네요. 할 게 많으니 미리미리 해보자는 다짐 좋습니다! 잠만 잘 지켜주면 충분히 소화할 수 있어요. 화이팅! :)"
+피드백 맨 마지막은 **이 학생이 실제로 적은 [다음주 목표]**를 구체적으로 언급하며 마무리하세요.
+
+**★★ 절대 주의 — 아래 예시는 "구조"만 참고하고 내용은 절대 베끼지 마세요 ★★**
+구조: (1) 이 학생이 적은 다음주 목표를 그대로 나열 → (2) 이 학생이 적은 다짐을 인용하며 격려 → (3) 이번주 총평 한 줄 → (4) 화이팅 마무리
+
+- ⛔ **다짐은 반드시 이 학생이 [다음주 목표]의 "다짐" 칸에 직접 쓴 문장만 인용하세요.** 학생이 다짐을 쓰지 않았으면 다짐 얘기를 아예 하지 마세요.
+- ⛔ 다른 학생의 다짐이나 예시에 나온 다짐 문구를 가져다 쓰는 것은 **치명적 오류**입니다. 학생은 자기가 뭘 썼는지 정확히 기억합니다.
+- ⛔ 목표에 적힌 교재·단원명도 이 학생이 쓴 것만 쓰세요. 예시의 "캠벨 1회독", "스미스 5장" 같은 걸 그대로 옮기지 마세요.
+- ✅ 다짐이 있으면: "(학생이 쓴 다짐 그대로)" 다짐 정말 좋습니다! — 이런 형태로 인용.
+- ✅ 다짐이 없으면: 목표만 짚고 격려로 마무리.
 
 **★ 학생 제출이 짧을 때 분량을 채우는 방법 (중요):**
 제출이 짧다고 피드백까지 짧게 쓰면 안 됩니다. 홍쌤은 이럴 때 아래로 채웁니다. 없는 사실을 지어내라는 뜻이 절대 아니고, 이미 있는 정보를 더 깊게 쓰라는 뜻입니다.
@@ -3457,12 +3559,30 @@ ${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학
 3. 학생이 쓴 한 줄에 대해 "왜 그런가 + 그래서 어떻게 하면 되는가"를 구체적으로 풀어 설명
 4. 다음주 목표에 대한 코멘트
 
+**★★ 홍쌤이 매주 직접 채워 넣는 2가지 — 미리 써두면 시간이 가장 많이 절약됩니다 ★★**
+7월 4주차에 홍쌤이 새로 쓰신 285문장을 분석한 결과입니다. 이 두 가지만 미리 채워도 홍쌤이 손으로 쓸 일이 크게 줄어듭니다.
+
+**① 구체적 실행 지시 — 39명 중 35명(90%)에게 직접 써넣으심**
+"~하는 게 좋습니다" 수준의 방향 제시로 끝내지 마세요. **언제·무엇을·어떻게 할지**까지 내려가야 합니다.
+- 부족한 예: "복습을 챙기는 게 좋겠어요."
+- 홍쌤 수준: "매일 오전 8~9시를 복습 시간으로 고정하고, 그날은 틀렸던 문제만 10개 다시 풀어보세요."
+- 부족한 예: "실수를 줄여보세요."
+- 홍쌤 수준: "2000제 계산할 때 날려 쓰지 말고 한 줄 한 줄 정확히 써보면서 어디서 실수하는지 패턴을 찾아보세요."
+→ 학생이 보완할점에 쓴 항목마다 이 수준의 지시가 하나씩 붙어야 합니다.
+
+**② 진도·기한 판단 — 39명 중 28명(72%)에게 직접 써넣으심**
+학생 개인 커리큘럼의 기한과 현재 진도를 대조해 **빠른지 늦은지 판정**하고, 늦으면 속도 내는 방법까지 제시하세요. 이건 홍쌤이 상담 기록을 다시 찾아봐야 하는 일이라 시간이 가장 많이 듭니다. 프로필이 주어져 있으니 반드시 미리 해두세요.
+- 늦을 때: "상담 때 1500제 완강을 7월까지로 잡았는데 지금 12장이면 빠듯합니다. 70% 이해되면 넘어가고 애매한 건 메모만 남기세요."
+- 맞을 때: "이 속도면 8월 중순 목표에 충분히 맞습니다. 지금처럼 가시면 돼요."
+※ 프로필에 기한이 없으면 판단하지 마세요.
+
 **★★ 커버리지 규칙 — 가장 자주 어기는 규칙이니 반드시 확인하세요 ★★**
 - **학생이 쓴 "보완할점"은 하나도 빠짐없이 각각 대응하세요.** 3가지를 썼으면 3가지 모두입니다. 임의로 생략하면 학생이 "내 고민이 무시당했다"고 느낍니다.
 - **★★ 단, 보완할점을 무조건 "고쳐줘야 할 문제"로 다루지 마세요. 먼저 아래 3가지 중 무엇인지 분류하세요 ★★**
 
   **[유형 A] 스스로 깨달은 올바른 방향** — 학생이 보완할점 칸에 적었지만 내용은 사실 홍쌤이 평소 강조하는 방향과 일치하는 깨달음인 경우.
-  - 예: "시험이 가까울수록 기본기가 중요하다는 걸 느낀다", "자주 출제되는 부분을 계속 봐주는 게 중요하다고 느낀다", "진도보다 복습이 중요한 것 같다", "완벽하게 외우려 하기보다 여러 번 보는 게 낫겠다"
+  - 이런 유형: 기본기가 중요하다는 걸 느꼈다 / 자주 출제되는 부분을 반복해야겠다 / 진도보다 복습이 중요한 것 같다 / 완벽하게 외우기보다 여러 번 보는 게 낫겠다
+  - ※ 위는 **유형 설명일 뿐 예문이 아닙니다.** 이 문장들을 학생이 쓴 것처럼 인용하지 마세요. 인용은 반드시 이 학생이 실제로 쓴 문장만.
   - **→ 이건 문제가 아니라 잘하고 있다는 신호입니다. 방법을 제시하거나 조언을 덧붙이지 마세요.** 제대로 가고 있다고 인정하고 칭찬하는 것으로 충분합니다. 여기에 굳이 실행 방법을 붙이면 군더더기가 되어 홍쌤이 지우게 됩니다.
   - 판단 기준: 위 [홍쌤 표준 가이드 문구]에 있는 내용과 같은 이야기를 학생이 스스로 하고 있다면 유형 A입니다.
 
@@ -3477,20 +3597,31 @@ ${Number(month)>=9?`### 민동준T 3사이클 전략 + 3노트 시스템 (화학
 - 학생이 질문을 했다면(예: "~방법을 추천받고 싶습니다") 반드시 답하세요.
 - "잘한점"은 전부 나열하지 말고 가장 의미 있는 1-2개를 골라 구체적으로 인정하면 됩니다.
 
-**★ 분량 원칙: 길어지는 건 전혀 문제가 아닙니다. 짧아서 빠뜨리는 게 문제입니다.**
-이 피드백의 목표는 "홍쌤이 손댈 곳이 없게 만드는 것"입니다. 분량을 맞추려고 내용을 쳐내지 마세요. 짚을 게 많으면 길게 쓰는 게 맞습니다. 아래 수치는 **하한선 기준**이지 상한이 아닙니다.
+**★★ 분량 원칙 (7월 4주차 39명 실측 반영 — 가장 중요) ★★**
+목표는 "홍쌤이 손댈 곳이 없게" 만드는 것입니다. 실측 결과 편집 시간을 좌우하는 요인은 **두 가지**이고, 뒤쪽이 더 강합니다.
+1. 자동생성이 길어서 **잘라내는** 작업 (상관계수 0.61)
+2. 빠진 내용을 홍쌤이 **직접 써넣는** 작업 (상관계수 **0.66** — 이쪽이 더 큼)
+
+새로 쓴 문장이 0~4개면 평균 6.6분, 10개 넘으면 11.2분이었습니다. **그러니 "짧게"가 목표가 아니라 "쓸 것만 정확히, 빠짐없이"가 목표입니다.**
+- 분량을 맞추려고 학생이 쓴 내용을 빠뜨리면 홍쌤이 다시 써야 해서 오히려 시간이 늘어납니다.
+- 대신 **아래 [지워지는 문구]에 해당하는 원론·중복 칭찬을 빼서** 자리를 만드세요.
+- 그 자리에 **구체적 실행 지시**와 **진도 판단**을 채우세요. 이 두 가지가 홍쌤이 가장 많이 직접 써넣는 내용입니다.
 
 **★ 분량은 최소한 학생 제출량에 비례해야 합니다 (실제 홍쌤 피드백 40건 분석 결과):**
 학생이 길고 자세하게 썼는데 짧게 답하면 "내 글을 안 읽었구나"가 됩니다. 아래는 홍쌤의 실제 평균치이니 최소 이 수준은 나와야 합니다.
-- 학생 제출 총량 600자 미만 → 피드백 약 2,000자
-- 학생 제출 총량 600~1,000자 → 피드백 약 2,300자
-- 학생 제출 총량 1,000~1,600자 → 피드백 약 2,600자
-- 학생 제출 총량 1,600~2,400자 → 피드백 약 2,900자
-- 학생 제출 총량 2,400자 이상 → 피드백 약 3,400자
+- 학생 제출 총량 700자 미만 → 피드백 **1,800자 내외**
+- 학생 제출 총량 700~1,200자 → 피드백 **2,100자 내외**
+- 학생 제출 총량 1,200~1,800자 → 피드백 **2,400자 내외**
+- 학생 제출 총량 1,800~2,600자 → 피드백 **2,700자 내외**
+- 학생 제출 총량 2,600자 이상 → 피드백 **3,000자 내외** (아무리 길어도 3,300자를 넘기지 마세요)
+
+※ 위 수치는 홍쌤이 7월 4주차 39명을 실제로 손본 뒤 도달한 길이입니다. 이보다 길게 쓰면 홍쌤이 잘라내야 하고, 그 작업이 편집 시간의 가장 큰 부분을 차지합니다. **처음부터 이 길이로 쓰는 것이 목표입니다.**
 ※ 글자수를 세라는 뜻이 아니라, 제출이 길면 그만큼 짚어줄 것도 많다는 뜻입니다. 제출이 풍부한 학생에게 분량을 줄이는 건 명백한 실패입니다. 반대로 짚을 내용이 충실하다면 위 수치를 크게 넘겨도 좋습니다.
 
 **★ 위 분량은 아래 "빼야 할 것"을 빼고 난 뒤의 분량입니다:**
 피드백이 길어지는 원인은 학생 내용이 많아서가 아니라 아래 군더더기 때문입니다. 이것들만 제거하면 분량은 자연히 적정해집니다. 학생이 쓴 내용을 줄여서 분량을 맞추려 하지 마세요 — 그건 최악의 선택입니다.
+0. **원론적 학습법 설명** — 가장 많이 지워집니다(느린 그룹 삭제분의 16%). "복습이 중요하다", "기본서를 먼저 봐야 한다", "손으로 그려야 남는다" 같은 일반론은 학생이 이미 압니다. 학생이 그 방향을 **모르고 있을 때만** 쓰세요.
+0-1. **칭찬의 중복** — 같은 성과를 두 번 칭찬하지 마세요(삭제분의 10%). 과목마다 "정말 훌륭합니다"를 반복하면 뒤로 갈수록 무게가 없어집니다. 한 과목당 강한 칭찬은 1회면 충분합니다.
 1. 에니어그램 유형을 설명하는 문장 (아래 애니어그램 규칙 참조)
 2. "VF 커리큘럼의 핵심이거든요" 계열 상투구
 3. "합격생들이 공통적으로" 2회 이상 반복
@@ -3650,6 +3781,7 @@ ${trait&&ENN_DATA[trait]?.c?`[생활관리 코칭 포인트 — ${trait} 유형]
 ${ENN_DATA[trait].c}
 → 위 내용을 생활관리 피드백에 자연스럽게 녹여서 구체적으로 작성하세요. 단순히 "운동하세요" 수준이 아닌, 이 유형에 맞는 실천 전략과 주의점을 함께 제시해주세요.`:""}
 
+${learnBlock}
 ${prevBlock}
 ${prev2Block}
 ${profBlock}${noProfBlock}
@@ -3747,7 +3879,7 @@ async function callClaude(prompt,apiKey){
 // ── 상태 ──
 let S={
   mode:"student",step:"form",user:null,authReady:false,name:"",month:"11",week:"2",subjects:{},nw:{},formError:"",submitting:false,
-  tab:"list",subs:[],sel:null,prevData:null,prevData2:null,allowedEmails:null,diagEmail:"",diagResult:"",generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},fbDraftSaved:false,formDraftSaved:false,
+  tab:"list",subs:[],sel:null,prevData:null,prevData2:null,allowedEmails:null,diagEmail:"",diagResult:"",phraseQ:"",phraseHits:[],phraseCopied:-1,noteSaved:false,generated:"",generating:false,copied:false,galMonth:"7",galWeek:"1",galStudent:"",galCardTabs:{},galCardExpanded:{},fbDraftSaved:false,formDraftSaved:false,
   studentInfo:{},editMW:false,sortBy:"date",filterName:"",
   showKey:false,apiKey:localStorage.getItem("_apikey")||"",showPrompt:false,promptText:"",
   roster:[],showRoster:false,
@@ -4040,6 +4172,19 @@ function buildInstructor(){
     </div>
   </div>`;
 
+  // ── 이번 주 자동 학습 현황 ──
+  const LPv=weeklyPatterns(S.checkMonth,S.checkWeek,null);
+  const learnCard=`<div class="card" style="border-color:${LPv.themes.length||LPv.removed.length?'#c8e6c9':'#e5e5e5'};background:${LPv.themes.length||LPv.removed.length?'#f4faf5':'#fff'}">
+    <div class="card-head">🧠 이번 주 자동 학습 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 승인하신 피드백에서 패턴을 뽑아 다음 학생 생성에 반영합니다</span></div>
+    ${LPv.n<LEARN_MIN_APPROVED
+      ? `<div style="font-size:12px;color:#86868b;line-height:1.7">승인 <b>${LPv.n}건</b> / 최소 <b>${LEARN_MIN_APPROVED}건</b> 필요<br><span style="font-size:11px">${LEARN_MIN_APPROVED-LPv.n}명 더 승인하시면 이번 주 패턴이 자동으로 반영되기 시작합니다.</span></div>`
+      : `<div style="font-size:12px;line-height:1.8">
+          <div style="color:#1a7a3a;font-weight:600;margin-bottom:6px">✅ 승인 ${LPv.n}건 학습 중 — 다음 학생부터 반영됩니다</div>
+          ${LPv.removed.length?`<div style="margin-bottom:6px"><b style="color:#c0392b">지우고 계신 문장 ${LPv.removed.length}종</b><div style="font-size:11px;color:#6e6e73;margin-top:3px">${LPv.removed.slice(0,4).map(c=>`· (${c.count}명) ${esc(String(c.text).slice(0,60))}…`).join('<br>')}</div></div>`:''}
+          ${LPv.themes.length?`<div><b style="color:#1a7a3a">보강하고 계신 주제 ${LPv.themes.length}개</b><div style="font-size:11px;color:#6e6e73;margin-top:3px">${LPv.themes.map(t=>`· ${esc(t.label)} (${t.count}명)`).join('<br>')}</div></div>`:''}
+        </div>`}
+  </div>`;
+
   // ── 피드백 소요시간 현황 (5분 목표 추적) ──
   const st=weekStats(S.checkMonth,S.checkWeek);
   const fmtM=v=>v===null?"–":(Math.round(v*10)/10)+"분";
@@ -4070,7 +4215,7 @@ function buildInstructor(){
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
     detailHTML=`<div>${prevSection}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div><button class="btn-ghost btn-sm" onclick="set({editMW:!S.editMW})">${S.editMW?"취소":"✏️ 월/주차 수정"}</button></div>${S.editMW?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:13px;background:#f5f5f7;border-radius:9px;padding:10px 12px"><span style="font-size:12px;color:#6e6e73;white-space:nowrap">월/주차 변경:</span><select id="edit-month" style="width:auto">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),d.month)}</select><select id="edit-week" style="width:auto">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),d.week)}</select><button class="btn-blue btn-sm" onclick="updateMW()" style="white-space:nowrap">저장</button></div>`:""}<div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
-    ${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
+    ${(()=>{const nt=S.sel?.data?.teacherNote||"";return `<div class="card" style="border-color:#b8d8f0;background:#f7fbff"><div class="card-head" style="color:#0059b3">📝 생성 전 메모 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 학생 글 보고 짚을 것을 적어두면 자동생성에 최우선 반영됩니다</span></div><textarea id="tnote" placeholder="예) 생물: 식생분진 진도 밀린 거 짚고 8월 범위 조율 방법 주기 / 화학: 근사 기준 잡아주기 / 생활: 수면 2주 연속이라 사실만" style="min-height:72px;font-size:12px">${esc(nt)}</textarea><div style="display:flex;gap:6px;align-items:center;margin-top:7px"><button class="btn-blue btn-sm" onclick="saveTeacherNote()">메모 저장</button>${S.noteSaved?`<span style="font-size:11px;color:#1a7a3a;font-weight:600">저장됨 ✓</span>`:""}${nt?`<span style="font-size:11px;color:#0059b3;margin-left:auto">✅ 이 메모가 프롬프트 맨 앞에 들어갑니다</span>`:`<span style="font-size:11px;color:#aeaeb2;margin-left:auto">비워두면 평소대로 생성됩니다</span>`}</div></div><div class="card" style="border-color:#e0d4f0;background:#fbf9ff"><div class="card-head" style="color:#5b2ec4">🔍 예전에 쓴 문구 찾기 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 다른 학생에게 썼던 표현 재사용</span></div><div style="display:flex;gap:6px"><input id="phrase-q" value="${esc(S.phraseQ||"")}" placeholder="예: 근사 / 식곤증 / 취침 루틴 / 랜덤 test" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchPhrase()"><button class="btn-ghost btn-sm" onclick="searchPhrase()" style="white-space:nowrap">검색</button></div>${(S.phraseHits||[]).length?`<div style="margin-top:8px;max-height:260px;overflow-y:auto">`+(S.phraseHits||[]).map((x,i)=>`<div style="border-top:1px solid #eee;padding:7px 0"><div style="font-size:10px;color:#86868b;margin-bottom:2px">${esc(x.name)} · ${esc(x.mw)}${x.trait?` · ${esc(x.trait)}`:""} <button onclick="copyPhrase(${i})" style="border:none;background:#efe8ff;color:#5b2ec4;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;cursor:pointer;margin-left:4px">${S.phraseCopied===i?"복사됨 ✓":"복사"}</button></div><div style="font-size:11px;line-height:1.7;color:#3c3c43">${esc(x.text)}</div></div>`).join("")+`</div>`:(S.phraseQ&&S.phraseQ.length>=2?`<div style="font-size:11px;color:#aeaeb2;margin-top:7px">일치하는 문구가 없습니다.</div>`:"")}</div>`;})()}${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
     ${!S.generating&&S.generated?`${(()=>{const dk='_vf_fb_draft_'+(S.sel?.key||'');const saved=dk?localStorage.getItem(dk):null;return saved&&saved!==S.generated?'<div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="loadFeedbackDraft()" style="background:#f0a500;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';})()} <textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="saveFeedbackDraft()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap">${S.fbDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
@@ -4089,7 +4234,7 @@ function buildInstructor(){
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
   </div>
-  ${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${timeCard}${tabBar}${listHTML}${detailHTML}
+  ${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${learnCard}${timeCard}${tabBar}${listHTML}${detailHTML}
   </div>`;
 }
 
@@ -4247,7 +4392,7 @@ async function delSub(key){
 function previewPrompt(){
   if(!S.sel)return;
   const info=S.studentInfo[S.sel.data.name]||{};
-  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:info.trait||"",school:info.school||"",prevRecord:S.prevData,prevRecord2:S.prevData2})});
+  set({showPrompt:!S.showPrompt,promptText:buildPrompt({...S.sel.data,trait:info.trait||"",school:info.school||"",prevRecord:S.prevData,prevRecord2:S.prevData2,teacherNote:S.sel.data.teacherNote})});
 }
 // ── 소요시간·수정률 측정 ──
 function toDate(t){ if(!t)return null; if(t.toDate)return t.toDate(); if(t instanceof Date)return t; return null; }
@@ -4287,7 +4432,7 @@ async function generateFeedback(){
   const trait=info.trait||"",school=info.school||"";
   set({generating:true,generated:""});
   try{
-    const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData,prevRecord2:S.prevData2}),S.apiKey);
+    const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData,prevRecord2:S.prevData2,teacherNote:S.sel.data.teacherNote}),S.apiKey);
     // 최초 생성 시에만 originalFeedback + 생성시각 저장 (재생성해도 덮어쓰지 않음)
     if(!S.sel.data.originalFeedback){
       const ts=firebase.firestore.FieldValue.serverTimestamp();
@@ -4372,6 +4517,120 @@ auth.onAuthStateChanged(async user=>{
   // 로그인한 뒤에만 Firestore 접근 (보안 규칙상 비로그인 읽기 차단)
   if(user&&!_appInited){_appInited=true;initApp();}
 });
+
+// ── 이번 주 홍쌤 승인본에서 반복 패턴 자동 학습 ──
+// 자동생성 원본(originalFeedback) vs 최종승인본(generatedFeedback)을 비교해
+// 홍쌤이 "매번 추가하는 문장"과 "매번 지우는 문장"을 뽑아낸다.
+function _sents(t){
+  return String(t||'').split(/\n+|(?<=[.!?])\s+|(?<=다\.)\s*|(?<=요\.)\s*|(?<=요!)\s*|(?<=다!)\s*/)
+    .map(x=>x.trim()).filter(x=>x.length>=18&&x.length<=220);
+}
+function _key(t){ // 학생별 개인화 요소 제거 → 같은 취지 문장끼리 묶이도록
+  return String(t).replace(/[0-9]+/g,'#').replace(/[가-힣]{2,4}\s*학생/g,'').replace(/\s+/g,'').toLowerCase();
+}
+function _gram(s){const S=new Set();for(let i=0;i+3<=s.length;i++)S.add(s.slice(i,i+3));return S;}
+function _sim(a,b){
+  if(!a.size||!b.size)return 0;
+  let hit=0; a.forEach(x=>{if(b.has(x))hit++;});
+  return hit/Math.min(a.size,b.size);
+}
+function _cluster(items,th){ // items: [{text, owner}]
+  const out=[];
+  for(const it of items){
+    const g=_gram(_key(it.text));
+    let placed=false;
+    for(const c of out){
+      if(_sim(g,c.gram)>=th){ c.owners.add(it.owner); if(it.text.length<c.text.length)c.text=it.text; placed=true; break; }
+    }
+    if(!placed)out.push({text:it.text,gram:g,owners:new Set([it.owner])});
+  }
+  return out.map(c=>({text:c.text,count:c.owners.size})).sort((a,b)=>b.count-a.count);
+}
+const LEARN_MIN_APPROVED=8;   // 최소 승인 건수 (홍쌤 요청: 초반 10명 정도)
+// 홍쌤 추가분은 학생별 맞춤이라 문장이 겹치지 않음 → "주제" 단위로 학습
+const LEARN_THEMES=[
+ ['복습을 진도보다 우선', /복습/],
+ ['운동 강도·횟수', /운동|런닝|러닝|계단|스쿼트|유산소/],
+ ['진도 속도 조절', /속도|빠르게|진도\s*(를)?\s*(더|조금)?\s*(내|늦|빠)/],
+ ['불안·멘탈 관리', /불안|걱정|멘탈|명상|자책|조급/],
+ ['기본서 우선', /기본서|캠벨|스미스|꿀벌/],
+ ['칭찬·격려 보강', /고생|훌륭|잘하고 있|칭찬|충분합니다/],
+ ['수면·취침 루틴', /수면|취침|잠|일찍 자/],
+ ['과목 밸런스', /밸런스|균형|치우/],
+ ['식곤증·식사', /식곤증|식사|혈당/],
+ ['손으로 그리기', /손으로|그려|그리면서/],
+ ['누적복습', /누적/],
+ ['무리하지 않기', /무리|과하|욕심/],
+];
+function weeklyPatterns(month,week,excludeKey){
+  const items=(S.subs||[]).filter(s=>String(s.data.month)===String(month)&&String(s.data.week)===String(week)
+    &&s.data.feedbackApproved&&s.data.originalFeedback&&s.data.generatedFeedback&&s.key!==excludeKey);
+  if(items.length<LEARN_MIN_APPROVED)return {n:items.length,themes:[],removed:[]};
+  const del=[], addTexts=[];
+  for(const it of items){
+    const o=_sents(it.data.originalFeedback), f=_sents(it.data.generatedFeedback);
+    const og=o.map(x=>_gram(_key(x))), fg=f.map(x=>_gram(_key(x)));
+    const mine=[];
+    f.forEach((t,i)=>{ if(!og.some(g=>_sim(fg[i],g)>=0.7)) mine.push(t); });
+    addTexts.push(mine);
+    o.forEach((t,i)=>{ if(!fg.some(g=>_sim(og[i],g)>=0.7)) del.push({text:t,owner:it.key}); });
+  }
+  // 주제별로 "몇 명에게 추가했는지" + 대표 문장 1개
+  const themes=LEARN_THEMES.map(([label,re_])=>{
+    let cnt=0, sample='';
+    addTexts.forEach(list=>{
+      const hit=list.find(t=>re_.test(t));
+      if(hit){ cnt++; if(!sample||hit.length<sample.length) sample=hit; }
+    });
+    return {label,count:cnt,sample};
+  }).filter(t=>t.count>=Math.max(3,Math.ceil(items.length*0.25)))
+    .sort((a,b)=>b.count-a.count).slice(0,6);
+  const needDel=Math.max(3,Math.ceil(items.length*0.3));
+  return {
+    n:items.length,
+    themes,
+    removed:_cluster(del.slice(0,800),0.55).filter(c=>c.count>=needDel).slice(0,6)
+  };
+}
+
+// ── 홍쌤 사전 메모: 생성 전에 짚을 것을 미리 적어두면 프롬프트에 최우선으로 반영 ──
+async function saveTeacherNote(){
+  if(!S.sel)return;
+  const v=document.getElementById('tnote')?.value||'';
+  await fsdb.collection("submissions").doc(S.sel.key).update({teacherNote:v});
+  const d={...S.sel.data,teacherNote:v};
+  S.subs=S.subs.map(s=>s.key===S.sel.key?{...s,data:d}:s);
+  S.sel={...S.sel,data:d};
+  set({noteSaved:true}); setTimeout(()=>set({noteSaved:false}),2000);
+}
+
+// ── 과거 피드백 문구 검색 (다른 학생에게 썼던 표현 재사용) ──
+function searchPhrase(){
+  const q=(document.getElementById('phrase-q')?.value||'').trim();
+  S.phraseQ=q;
+  if(q.length<2){ S.phraseHits=[]; render(); return; }
+  const rx=new RegExp(q.split(/\s+/).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.{0,12}'),'i');
+  const hits=[];
+  for(const s of (S.subs||[])){
+    const d=s.data; if(!d.feedbackApproved||!d.generatedFeedback)continue;
+    if(d.name===S.sel?.data?.name && String(d.month)===String(S.sel?.data?.month) && String(d.week)===String(S.sel?.data?.week))continue;
+    for(const line of String(d.generatedFeedback).split(/\n+/)){
+      const t=line.trim(); if(t.length<15)continue;
+      if(rx.test(t)){
+        hits.push({name:d.name,mw:`${d.month}월 ${d.week}주`,text:t,
+          trait:(S.studentInfo[d.name]?.trait||STUDENT_ENNEAGRAM[d.name]||'')});
+        break;   // 학생당 1개만
+      }
+    }
+    if(hits.length>=25)break;
+  }
+  S.phraseHits=hits; render();
+}
+function copyPhrase(i){
+  const h=(S.phraseHits||[])[i]; if(!h)return;
+  navigator.clipboard?.writeText(h.text);
+  S.phraseCopied=i; render(); setTimeout(()=>{S.phraseCopied=-1;render();},1500);
+}
 
 // 생성 전 신뢰 위험 사전 점검 (강사 화면 배지)
 function trustWarnings(item){
