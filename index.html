@@ -3189,6 +3189,49 @@ async function updateMW(){
 }
 
 // ── 프롬프트 빌더 ──
+// ══════════════════════════════════════════════════════════════
+// 출처 검증 게이트 — 프롬프트 맨 앞(메모 다음)에 들어간다.
+// 8월 3주차에 실제 사고 3건 발생: 사전상담 프로필의 교재·진도 내용이
+// "학생이 이번 주에 한 일"로 둔갑해 생성됨. 신뢰 직결 사안이라 최우선 규칙.
+// ══════════════════════════════════════════════════════════════
+const SOURCE_GATE=`
+🚨🚨🚨 **최우선 규칙 — 이것을 어기면 나머지를 아무리 잘 써도 실패입니다** 🚨🚨🚨
+
+## 사실은 오직 [이번 주 학생 데이터]에서만 가져옵니다
+
+이 프롬프트에는 여러 블록이 들어 있습니다. 그 중 **학생이 이번 주에 실제로 쓴 글은 [이번 주 학생 데이터] 블록 하나뿐**입니다. 나머지(사전상담 프로필, 저번주 기록, 2주 전 기록, 공식 커리큘럼, 자동 학습 블록)는 **배경 이해용 참고 자료**이지, 학생이 이번 주에 한 일이 아닙니다.
+
+**❌ 절대 하지 마세요 — 아래는 8월 3주차에 실제로 터진 사고입니다**
+
+1. **프로필의 교재·진도를 학생이 이번 주에 한 것처럼 쓰기**
+   사고 예: 프로필에 "약사랑 유기화학 아민만 남음, 스미스 병행"이라고 적혀 있자, 학생이 이번 주 제출에 한 글자도 안 썼는데 **"스미스 아민 끝 + 17,18장"** 이라고 진도를 지어냈습니다.
+   사고 예: 프로필에 "1500제 완료, 2000제 AB 복습" 이 있자, **"아직도 1500제를 복습하고 있다는 현재의 모습에 약간 실망했다고 했는데요"** 라고 학생이 하지도 않은 말을 만들어냈습니다.
+
+2. **학생의 감정·발언 날조**
+   "~라고 했는데요", "~라고 하셨죠", "~해서 아쉽다고 하셨는데" 같은 표현은 **학생이 그 말을 실제로 쓴 경우에만** 씁니다. 특히 실망·불안·아쉬움 같은 감정은 학생이 직접 쓴 단어가 없으면 절대 만들어내지 마세요.
+
+3. **시점 날조**
+   "저번주에 ~했었는데 이번주 TEST 때~" — 저번주 블록에도 없고 이번 주 제출에도 없는 사건을 만들어냈습니다.
+
+**✅ 반드시 이렇게 하세요**
+
+- **교재명·단원명·장 번호·강의 회차·시험(TEST/모의고사) 이름·점수는 학생이 이번 주 제출에 직접 쓴 것만 사용합니다.** 프로필이나 커리큘럼에서 본 것을 옮겨 쓰지 마세요. 학생이 안 썼으면 그 교재는 이번 주 피드백에 등장할 수 없습니다.
+- 프로필은 **"이 학생의 목표 기한이 언제인가"를 판단하는 데만** 쓰세요. 진도 서술의 근거가 아닙니다.
+- 프로필 정보를 꼭 꺼내야 한다면 **단정하지 말고 물어보세요.** "스미스는 요즘 어디까지 보고 계신가요?" (○) / "스미스 아민 끝내셨네요" (✗)
+- 저번주 피드백에서 홍쌤이 쓴 문장을 **그대로 옮겨 쓰지 마세요.** 이번 주는 이번 주 내용으로 새로 씁니다.
+- **판단이 애매하면 빼세요.** 빠뜨린 칭찬은 홍쌤이 한 줄 추가하면 되지만, 지어낸 사실은 학생이 즉시 알아채고 신뢰가 무너집니다. 빼는 쪽이 언제나 안전합니다.
+
+## ★ 출력하기 전에 반드시 자기 점검하세요 ★
+
+작성을 마치면 본문을 처음부터 다시 읽으면서, **구체적인 사실이 담긴 문장마다** 스스로 물으세요.
+
+> "이 교재명 / 이 장 번호 / 이 시험 / 이 학생의 말이 [이번 주 학생 데이터] 블록 안에 실제로 있는가?"
+
+없다면 **그 문장을 지우거나, 사실 없이 방법론만 남기도록 고쳐 쓰세요.** 이 점검을 통과한 문장만 출력합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
 function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRecord2,teacherNote}){
   // ★ 홍쌤이 생성 전에 직접 적어둔 지시 — 무엇보다 우선
   const noteBlock=(teacherNote&&String(teacherNote).trim())?
@@ -3218,7 +3261,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRe
   const prof=STUDENT_PROFILE[name]||"";
   // 프로필이 없을 때(미업로드·이름 불일치 등) 근거 없는 진도 판단을 막는 안전장치
   const noProfBlock=prof?"":`\n## ⚠️ 이 학생의 개별 상담 프로필이 없습니다\n- **진도가 빠르다/느리다는 판단을 하지 마세요.** 학생마다 목표 기한이 다른데 기준 데이터가 없습니다. "7월이 끝나가는데 늦었다" 같은 표현 금지.\n- 학생이 스스로 "진도가 느린 것 같다"고 쓴 경우에만, 판정하지 말고 방법 위주로 답하세요.\n- 개인 이력(재수·PEET 경험·직장 병행 등)도 추측하지 마세요.\n`;
-  const profBlock=prof?`\n## ★ ${name} 학생 사전상담 프로필 (7월 시작 시점의 베이스라인) ★\n※ 우선순위 주의: 위에 저번주 기록이 있다면 **그쪽이 우선**입니다. 상담은 출발점이고, 실제 지도는 매주 피드백으로 갱신됩니다. 상담 내용과 최근 피드백이 어긋나면 최근 피드백을 따르세요. 이 프로필은 학생의 배경·목표·초기 약속을 파악하는 용도입니다.\n\n${prof}\n\n→ ★★ 활용 원칙 — 순서대로 판단하세요 ★★\n\n**[0] 가장 중요: 상담 내용은 "기준"이지 "규정"이 아닙니다.**\n매주 학생의 상황은 바뀝니다. 상담 기록만으로 판단하면 현실과 안 맞는 피드백이 나옵니다. 그래서 판단 순서가 있습니다.\n\n**(1) 학생이 스스로 방법을 찾아 교정한 부분은 최대한 인정하고 칭찬하세요. 이게 최우선입니다.**\n학생이 능동적으로 공부법이나 생활관리 방식을 바꿨다면, 그게 상담 때 정한 것과 형태가 다르더라도 **그 자체를 성장으로 인정**해주세요. 스스로 점검하고 조정하는 능력이 붙는 것이 상담 때 정한 형식을 지키는 것보다 훨씬 중요합니다.\n- 예: 상담 때 "아침 운동"으로 잡았는데 학생이 "아침 운동은 다음날 더 피곤해서 저녁 운동으로 바꿔봤더니 좋았다"고 썼다면 → 절대 "상담 때 아침 운동으로 정했었죠?"라고 하지 마세요. → "스스로 실험해보고 본인에게 맞는 걸 찾은 것 아주 좋습니다!"로 인정.\n- 예: 상담 때 정한 교재 순서를 학생이 자기 상황에 맞게 조정했는데 방향성이 어긋나지 않는다면 → 인정하고 격려.\n\n**(2) 단, 홍쌤이 상담에서 "반드시 ~하라" 또는 "절대 ~하지 마라"라고 못 박은 항목은 예외입니다. 이건 방향을 분명히 잡아주세요.**\n프로필 문구에 "필수", "반드시", "절대", "금지", "하지 말 것", "~까지 완료" 같은 강한 표현이 붙어 있으면 그건 타협 대상이 아닙니다. 대표적으로 운동 횟수, 최소 수면 시간, 과목별 완강 기한, 스킵하기로 한 범위, 공부 공간과 휴식 공간 분리 등이 여기 해당하는 경우가 많습니다.\n- 이때도 질책이 아니라 이유와 함께: "상담 때 운동 주 3회로 잡았던 건 이게 멘탈 유지의 핵심 도구이기 때문이에요. 이번주 1회면 조금 밀렸으니 다시 붙여봅시다."\n- 그리고 학생이 못 지키고 있다면 원인을 제거하는 **다른 방법**을 제시하세요. 같은 방법을 반복 지시하면 또 못 지킵니다.\n\n**(3) ★ 진도 지연 판단은 반드시 이 학생의 개인 커리큘럼 기준으로 하세요. 이것이 프로필의 가장 중요한 용도입니다.**\n[과목별 커리큘럼]은 이 학생 전용 계획이며, 학생마다 기한과 경로가 다릅니다. 다른 학생 기준으로 판단하면 안 됩니다.\n판단 절차:\n1. 프로필에서 해당 과목의 **목표 시점**을 찾으세요. (예: "1500제 완강 늦어도 7월까지, 복습 8월 13일까지" / "스미스 셀프 1회독 후 2회독, 8월 말~9월 초에 풀케어반 커리큘럼 합류" / "2000제 8월 중순~10월")\n2. **지금이 ${month}월 ${week}주차**임을 기준으로, 목표 시점까지 남은 기간을 계산하세요.\n3. 학생이 이번주 제출한 진도가 그 남은 기간 안에 목표에 도달할 속도인지 추론하세요.\n4. 늦다고 판단되면 구체적인 근거와 함께 짚어주세요. 예: "7월이 거의 끝나가는데 아직 입체화학이면 조금 늦어요. 매일 시간을 조금 더 들여서 속도를 내야겠습니다." / "1500제 완강이 7월까지인데 지금 5·6장이면 남은 기간이 빠듯해요."\n5. 반대로 계획대로거나 앞서 있으면 그 사실을 확인해주며 안심시키세요. 예: "이 속도면 8월 말 목표에 충분히 맞습니다. 지금처럼만 가면 돼요."\n※ 커리큘럼 문서의 공통 일정이 아니라 **이 학생 프로필에 적힌 개인 기한**이 기준입니다. 프로필에 기한이 없는 과목은 진도 지연 판단을 하지 마세요.\n\n**(4) 배경 정보는 자연스러운 맥락에서만.**\n[지원 전략]의 목표 학교·GPA·이력(재수, PEET 경험, 직장 병행 등)을 알고 있다는 게 드러나면 학생이 "홍쌤이 나를 알고 있다"고 느낍니다. 예: "PEET 유기도 했었으니 편입 유기는 충분히 해낼 수 있어요!"\n\n**(5) 프로필을 나열하듯 옮겨 쓰지 마세요.** 이번주 제출 내용과 맞닿는 지점에서만 꺼내 씁니다. 전체 피드백에서 상담 언급은 2~3회면 충분합니다.\n`:"";
+  const profBlock=prof?`\n## ★ ${name} 학생 사전상담 프로필 (7월 시작 시점의 베이스라인) ★\n\n🚨🚨 **이 블록은 7월 상담 당시의 기록입니다. 학생이 이번 주에 한 일이 아닙니다.** 🚨🚨\n- ❌ 여기 적힌 **교재명·단원·장 번호·진도 상태를 학생이 이번 주에 했다는 식으로 쓰면 절대 안 됩니다.** (실제 사고: 프로필의 "약사랑 아민만 남음, 스미스 병행"을 보고 학생이 쓰지도 않은 "스미스 아민 끝 + 17,18장"을 지어냄)\n- ❌ 여기 적힌 상태를 근거로 학생의 감정을 지어내지 마세요. (실제 사고: 프로필의 "1500제 완료" 기록을 보고 "1500제 복습하는 게 실망스럽다고 했는데요"라는 학생 발언을 날조함)\n- ✅ 이 블록의 **유일한 용도는 "이 학생의 목표 기한이 언제인가"를 아는 것**입니다. 진도가 기한 대비 빠른지 느린지 판단할 때만 쓰세요.\n- ✅ 배경(목표 학교·이력)은 격려의 맥락에서만 가볍게. 진도 서술에는 쓰지 마세요.\n- ✅ 여기 있는 내용이 궁금하면 단정하지 말고 **질문 형태로** 쓰세요. "스미스는 요즘 어디까지 보고 계신가요?"\n\n※ 우선순위 주의: 위에 저번주 기록이 있다면 **그쪽이 우선**입니다. 상담은 출발점이고, 실제 지도는 매주 피드백으로 갱신됩니다. 상담 내용과 최근 피드백이 어긋나면 최근 피드백을 따르세요. 이 프로필은 학생의 배경·목표·초기 약속을 파악하는 용도입니다.\n\n${prof}\n\n→ ★★ 활용 원칙 — 순서대로 판단하세요 ★★\n\n**[0] 가장 중요: 상담 내용은 "기준"이지 "규정"이 아닙니다.**\n매주 학생의 상황은 바뀝니다. 상담 기록만으로 판단하면 현실과 안 맞는 피드백이 나옵니다. 그래서 판단 순서가 있습니다.\n\n**(1) 학생이 스스로 방법을 찾아 교정한 부분은 최대한 인정하고 칭찬하세요. 이게 최우선입니다.**\n학생이 능동적으로 공부법이나 생활관리 방식을 바꿨다면, 그게 상담 때 정한 것과 형태가 다르더라도 **그 자체를 성장으로 인정**해주세요. 스스로 점검하고 조정하는 능력이 붙는 것이 상담 때 정한 형식을 지키는 것보다 훨씬 중요합니다.\n- 예: 상담 때 "아침 운동"으로 잡았는데 학생이 "아침 운동은 다음날 더 피곤해서 저녁 운동으로 바꿔봤더니 좋았다"고 썼다면 → 절대 "상담 때 아침 운동으로 정했었죠?"라고 하지 마세요. → "스스로 실험해보고 본인에게 맞는 걸 찾은 것 아주 좋습니다!"로 인정.\n- 예: 상담 때 정한 교재 순서를 학생이 자기 상황에 맞게 조정했는데 방향성이 어긋나지 않는다면 → 인정하고 격려.\n\n**(2) 단, 홍쌤이 상담에서 "반드시 ~하라" 또는 "절대 ~하지 마라"라고 못 박은 항목은 예외입니다. 이건 방향을 분명히 잡아주세요.**\n프로필 문구에 "필수", "반드시", "절대", "금지", "하지 말 것", "~까지 완료" 같은 강한 표현이 붙어 있으면 그건 타협 대상이 아닙니다. 대표적으로 운동 횟수, 최소 수면 시간, 과목별 완강 기한, 스킵하기로 한 범위, 공부 공간과 휴식 공간 분리 등이 여기 해당하는 경우가 많습니다.\n- 이때도 질책이 아니라 이유와 함께: "상담 때 운동 주 3회로 잡았던 건 이게 멘탈 유지의 핵심 도구이기 때문이에요. 이번주 1회면 조금 밀렸으니 다시 붙여봅시다."\n- 그리고 학생이 못 지키고 있다면 원인을 제거하는 **다른 방법**을 제시하세요. 같은 방법을 반복 지시하면 또 못 지킵니다.\n\n**(3) ★ 진도 지연 판단은 반드시 이 학생의 개인 커리큘럼 기준으로 하세요. 이것이 프로필의 가장 중요한 용도입니다.**\n[과목별 커리큘럼]은 이 학생 전용 계획이며, 학생마다 기한과 경로가 다릅니다. 다른 학생 기준으로 판단하면 안 됩니다.\n판단 절차:\n1. 프로필에서 해당 과목의 **목표 시점**을 찾으세요. (예: "1500제 완강 늦어도 7월까지, 복습 8월 13일까지" / "스미스 셀프 1회독 후 2회독, 8월 말~9월 초에 풀케어반 커리큘럼 합류" / "2000제 8월 중순~10월")\n2. **지금이 ${month}월 ${week}주차**임을 기준으로, 목표 시점까지 남은 기간을 계산하세요.\n3. 학생이 이번주 제출한 진도가 그 남은 기간 안에 목표에 도달할 속도인지 추론하세요.\n4. 늦다고 판단되면 구체적인 근거와 함께 짚어주세요. 예: "7월이 거의 끝나가는데 아직 입체화학이면 조금 늦어요. 매일 시간을 조금 더 들여서 속도를 내야겠습니다." / "1500제 완강이 7월까지인데 지금 5·6장이면 남은 기간이 빠듯해요."\n5. 반대로 계획대로거나 앞서 있으면 그 사실을 확인해주며 안심시키세요. 예: "이 속도면 8월 말 목표에 충분히 맞습니다. 지금처럼만 가면 돼요."\n※ 커리큘럼 문서의 공통 일정이 아니라 **이 학생 프로필에 적힌 개인 기한**이 기준입니다. 프로필에 기한이 없는 과목은 진도 지연 판단을 하지 마세요.\n\n**(4) 배경 정보는 자연스러운 맥락에서만.**\n[지원 전략]의 목표 학교·GPA·이력(재수, PEET 경험, 직장 병행 등)을 알고 있다는 게 드러나면 학생이 "홍쌤이 나를 알고 있다"고 느낍니다. 예: "PEET 유기도 했었으니 편입 유기는 충분히 해낼 수 있어요!"\n\n**(5) 프로필을 나열하듯 옮겨 쓰지 마세요.** 이번주 제출 내용과 맞닿는 지점에서만 꺼내 씁니다. 전체 피드백에서 상담 언급은 2~3회면 충분합니다.\n`:"";
   let prevBlock="";
   if(prevRecord){
     const pTag=`${prevRecord.month}월 ${prevRecord.week}주차`;
@@ -3264,7 +3307,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRe
       +`- 판단이 애매하면 이 블록은 **아예 없는 셈 치고** 저번주 기록과 이번주 제출만 보고 쓰세요. 그게 항상 더 안전합니다.\n`;
     }
   }
-  return `${noteBlock}당신은 약대·치대 편입 전문 강사 홍성찬 선생님입니다. 아래 학생의 주간 셀프피드백을 읽고, 홍성찬 선생님의 말투와 스타일로 피드백을 작성해주세요.
+  return `${noteBlock}${SOURCE_GATE}당신은 약대·치대 편입 전문 강사 홍성찬 선생님입니다. 아래 학생의 주간 셀프피드백을 읽고, 홍성찬 선생님의 말투와 스타일로 피드백을 작성해주세요.
 
 ## 홍성찬 선생님 피드백 스타일 가이드
 
@@ -4252,7 +4295,7 @@ function buildInstructor(){
     ${(()=>{const nt=S.sel?.data?.teacherNote||"";const noteObj=parseNote(nt);return `<div class="card" style="border-color:#b8d8f0;background:#f7fbff"><div class="card-head" style="color:#0059b3">📝 생성 전 메모 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 학생 글 보고 짚을 것을 적어두면 자동생성에 최우선 반영됩니다</span></div><div style="font-size:11px;color:#86868b;margin-bottom:6px">과목별로 나눠 적으면 해당 섹션에 정확히 반영됩니다. 빈 칸은 무시됩니다.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">${[["생물","🧬"],["화학","⚗️"],["유기","🔬"],["생활관리","🌿"],["공통","📌"]].map(([k,ic])=>`<div${k==="공통"?" style=\"grid-column:1/-1\"":""}><span class="lbl">${ic} ${k}</span><textarea id="tnote-${k}" data-note="${k}" placeholder="${k==="공통"?"전 과목 공통으로 넣을 내용":"이 과목에서 짚을 것"}" style="min-height:52px;font-size:12px">${esc(noteObj[k]||"")}</textarea></div>`).join("")}</div><textarea id="tnote" style="display:none">${esc(nt)}</textarea><div style="display:flex;gap:6px;align-items:center;margin-top:7px"><button class="btn-blue btn-sm" onclick="saveTeacherNote()">메모 저장</button>${S.noteSaved?`<span style="font-size:11px;color:#1a7a3a;font-weight:600">저장됨 ✓</span>`:""}${nt?`<span style="font-size:11px;color:#0059b3;margin-left:auto">✅ 이 메모가 프롬프트 맨 앞에 들어갑니다</span>`:`<span style="font-size:11px;color:#aeaeb2;margin-left:auto">비워두면 평소대로 생성됩니다</span>`}</div></div><div class="card" style="border-color:#e0d4f0;background:#fbf9ff"><div class="card-head" style="color:#5b2ec4">🔍 예전에 쓴 문구 찾기 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 다른 학생에게 썼던 표현 재사용</span></div><div style="display:flex;gap:6px"><input id="phrase-q" value="${esc(S.phraseQ||"")}" placeholder="예: 근사 / 식곤증 / 취침 루틴 / 랜덤 test" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchPhrase()"><button class="btn-ghost btn-sm" onclick="searchPhrase()" style="white-space:nowrap">검색</button></div>${(S.phraseHits||[]).length?`<div style="margin-top:8px;max-height:260px;overflow-y:auto">`+(S.phraseHits||[]).map((x,i)=>`<div style="border-top:1px solid #eee;padding:7px 0"><div style="font-size:10px;color:#86868b;margin-bottom:2px">${esc(x.name)} · ${esc(x.mw)}${x.trait?` · ${esc(x.trait)}`:""} <button onclick="copyPhrase(${i})" style="border:none;background:#efe8ff;color:#5b2ec4;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;cursor:pointer;margin-left:4px">${S.phraseCopied===i?"복사됨 ✓":"복사"}</button></div><div style="font-size:11px;line-height:1.7;color:#3c3c43">${esc(x.text)}</div></div>`).join("")+`</div>`:(S.phraseQ&&S.phraseQ.length>=2?`<div style="font-size:11px;color:#aeaeb2;margin-top:7px">일치하는 문구가 없습니다.</div>`:"")}</div>`;})()}${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
-    ${!S.generating&&S.generated?`${(()=>{const dk='_vf_fb_draft_'+(S.sel?.key||'');const saved=dk?localStorage.getItem(dk):null;return saved&&saved!==S.generated?'<div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="loadFeedbackDraft()" style="background:#f0a500;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';})()} <textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="saveFeedbackDraft()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap">${S.fbDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
+    ${!S.generating&&S.generated?`${(()=>{const H=hallucinationCheck(S.sel?.data||{});if(!H.length)return'';const SRC={prof:'사전상담 프로필에만 있음',prev:'지난 주 기록에만 있음',none:'어디에도 근거 없음'};return `<div style="background:#fff2f2;border:2px solid #e5484d;border-radius:10px;padding:11px 14px;margin-bottom:9px"><div style="font-weight:700;color:#c00;font-size:12.5px;margin-bottom:6px">🚨 학생이 이번 주에 안 쓴 내용일 수 있습니다 (${H.length}건)</div>${H.map(([t,src])=>`<div style="font-size:11.5px;line-height:1.8"><b style="color:#c00">${esc(t)}</b> <span style="color:#86868b">— ${SRC[src]}</span></div>`).join('')}<div style="font-size:10.5px;color:#86868b;margin-top:7px;line-height:1.6">본문에서 위 단어를 찾아(Ctrl+F) 학생이 실제로 쓴 내용인지 확인하세요. 아니면 그 문장을 지우시면 됩니다.</div></div>`;})()}${(()=>{const dk='_vf_fb_draft_'+(S.sel?.key||'');const saved=dk?localStorage.getItem(dk):null;return saved&&saved!==S.generated?'<div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:10px;padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:12px"><span>💾 임시저장된 내용이 있습니다.</span><button onclick="loadFeedbackDraft()" style="background:#f0a500;color:#fff;border:none;padding:4px 12px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">불러오기</button></div>':'';})()} <textarea id="fb-edit-area" style="width:100%;min-height:300px;padding:14px;font-size:13px;line-height:1.7;border:1.5px solid #d2d2d7;border-radius:12px;box-sizing:border-box;resize:vertical;font-family:inherit">${esc(S.generated)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button onclick="saveFeedbackDraft()" style="background:#f5f5f7;color:#1d1d1f;border:1.5px solid #d2d2d7;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap">${S.fbDraftSaved?"💾 저장됨":"💾 임시저장"}</button><button onclick="approveFeedback()" style="flex:1;background:${S.approved?"#34c759":"#0071e3"};color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:600">${S.approved?"✅ 작성 완료!":"✅ 최종 승인"}</button><button class="btn-ghost" onclick="set({tab:'list'})">목록으로</button></div><div style="margin-top:9px;background:#e8f0fb;border-radius:8px;padding:8px 11px;font-size:11px;color:#0059b3">💡 복사 후 VF 플랫폼에 붙여넣기 하시면 됩니다.</div>`:""}
     ${!S.generating&&!S.generated?`<div style="text-align:center;padding:32px 20px;color:#aeaeb2;font-size:13px">피드백 생성 버튼을 누르면 자동으로 만들어져요<br><span style="font-size:11px">(API 키 필요)</span></div>`:""}
     </div><button class="btn-ghost" onclick="set({tab:'list'})" style="width:100%;padding:11px;margin-bottom:24px">← 목록으로 돌아가기</button></div>`;
   }
@@ -4687,6 +4730,47 @@ function copyPhrase(i){
 }
 
 // 생성 전 신뢰 위험 사전 점검 (강사 화면 배지)
+// ══════════════════════════════════════════════════════════════
+// 할루시네이션 자동 검출 — 생성된 피드백에 나오는 '구체적 사실'
+// (교재명·장/강 번호·시험명)이 학생이 이번 주에 쓴 글에 있는지 대조한다.
+// 없으면 어디서 흘러들어왔는지(프로필/저번주/근거없음)까지 표시.
+// ══════════════════════════════════════════════════════════════
+// ※ 교재·문제집 이름만 넣는다. "모의고사·타임어택·박인규" 같은 일반 조언 어휘를
+//   넣으면 오탐이 84%까지 올라가 경고가 무시된다. 교재만 쓰면 43%, 건당 1.5개.
+//   (8월 2주차 실데이터 157건으로 검증. 홍쌤이 신고한 정주희 "캠벨"·이설희 "1500제" 정확히 포착)
+const HALLU_BOOKS=["1500제","2000제","스미스","캠벨","약사랑","퀴즐렛","기출올인원","기출N적중","MDP"];
+function _hnorm(t){return String(t||'').toLowerCase().replace(/\s+/g,'').replace(/테스트/g,'test');}
+function _studentText(d){
+  const p=[];
+  ALL_SUBS.forEach(s=>{const o=(d.subjects||{})[s]||{};["study","good","improve"].forEach(k=>{if(o[k])p.push(o[k]);});});
+  const nw=d.nw||{}; Object.keys(nw).forEach(k=>{if(nw[k])p.push(String(nw[k]));});
+  if(d.teacherNote)p.push(String(d.teacherNote));
+  return p.join("\n");
+}
+function hallucinationCheck(d){
+  const raw=d&&d.originalFeedback?String(d.originalFeedback):''; if(!raw)return [];
+  const fb=_hnorm(raw);
+  const mine=_hnorm(_studentText(d));
+  if(!mine)return [];
+  const prev=_hnorm([S.prevData,S.prevData2].filter(Boolean)
+    .map(p=>_studentText(p)+"\n"+(p.generatedFeedback||'')).join("\n"));
+  const prof=_hnorm((typeof STUDENT_PROFILE==='object'&&STUDENT_PROFILE[d.name])||'');
+  const out=[], seen=new Set();
+  const push=(disp,inPrev,inProf)=>{ if(seen.has(disp))return; seen.add(disp);
+    out.push([disp, inPrev?'prev':(inProf?'prof':'none')]); };
+  // (1) 교재·자료명
+  HALLU_BOOKS.forEach(b=>{ const n=_hnorm(b);
+    if(!fb.includes(n)||mine.includes(n))return;
+    push(b, prev.includes(n), prof.includes(n));
+  });
+  // (2) 장/강/단원 번호 — 숫자가 학생 글에 아예 없을 때만 잡는다(오탐 방지)
+  (raw.match(/\d+\s*(?:장|강|단원|회독|회차)/g)||[]).forEach(x=>{
+    const num=(x.match(/\d+/)||[])[0]; if(!num)return;
+    if(mine.indexOf(num)>=0)return;
+    push(x.replace(/\s+/g,''), prev.indexOf(num)>=0, prof.indexOf(num)>=0);
+  });
+  return out.slice(0,12);
+}
 function trustWarnings(item){
   if(!item)return [];
   const d=item.data,W=[];
