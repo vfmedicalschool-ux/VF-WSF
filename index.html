@@ -4438,7 +4438,7 @@ async function downloadExcel(){
     '다음주_생물단원','다음주_생물강의','다음주_생물문제',
     '다음주_화학단원','다음주_화학강의','다음주_화학문제',
     '다음주_유기단원','다음주_유기강의','다음주_유기문제',
-    '다짐','최종승인피드백'];
+    '다짐','최종승인피드백','참잘했어요'];
   const r1=S.subs.map(item=>{
     const d=item.data,sub=d.subjects||{},nw=d.nw||{};
     const dt=d.submittedAt&&d.submittedAt.toDate?d.submittedAt.toDate().toLocaleString('ko-KR'):'';
@@ -4450,12 +4450,12 @@ async function downloadExcel(){
       nw['생물_단원']||'',nw['생물_강의']||'',nw['생물_문제']||'',
       nw['화학_단원']||'',nw['화학_강의']||'',nw['화학_문제']||'',
       nw['유기_단원']||'',nw['유기_강의']||'',nw['유기_문제']||'',
-      nw['다짐']||'',d.generatedFeedback||''];
+      nw['다짐']||'',d.generatedFeedback||'',d.stamp?'O':''];
   });
   const ws1=XLSX.utils.aoa_to_sheet([h1,...r1]);
   // 열 너비 설정
   ws1['!cols']=[{wch:8},{wch:4},{wch:4},{wch:16},{wch:8},{wch:16},
-    ...Array(20).fill({wch:25}),{wch:12},{wch:60}];
+    ...Array(20).fill({wch:25}),{wch:12},{wch:60},{wch:9}];
   XLSX.utils.book_append_sheet(wb,ws1,'제출내용+최종피드백');
 
   // ── 탭2: 자동생성피드백 vs 최종피드백 비교 ──
@@ -4471,10 +4471,10 @@ async function downloadExcel(){
     const em=editMinutes(d), kr=keepRatio(d);
     return[d.name||'',d.month||'',d.week||'',dt,orig,final,changed,gs,fs,
            em===null?'':Math.round(em*10)/10, kr===null?'':Math.round(kr*100)+'%',
-           orig?orig.length:'', final?final.length:''];
+           orig?orig.length:'', final?final.length:'', d.stamp?'O':''];
   });
-  const ws2=XLSX.utils.aoa_to_sheet([[...h2,'생성시각','승인시각','소요(분)','원문유지율','원본글자수','최종글자수'],...r2]);
-  ws2['!cols']=[{wch:8},{wch:4},{wch:4},{wch:16},{wch:80},{wch:80},{wch:8},{wch:16},{wch:16},{wch:8},{wch:9},{wch:9},{wch:9}];
+  const ws2=XLSX.utils.aoa_to_sheet([[...h2,'생성시각','승인시각','소요(분)','원문유지율','원본글자수','최종글자수','참잘했어요'],...r2]);
+  ws2['!cols']=[{wch:8},{wch:4},{wch:4},{wch:16},{wch:80},{wch:80},{wch:8},{wch:16},{wch:16},{wch:8},{wch:9},{wch:9},{wch:9},{wch:9}];
   XLSX.utils.book_append_sheet(wb,ws2,'자동생성피드백');
 
   XLSX.writeFile(wb,'풀케어반_셀프피드백_'+new Date().toISOString().slice(0,10)+'.xlsx');
