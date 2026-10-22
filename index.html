@@ -3031,7 +3031,11 @@ async function loadEnneagram(){
 // ── Firestore 헬퍼 ──
 async function saveSubmission(data){
   const key=`${data.name}_${data.month}-${data.week}`;
-  await fsdb.collection("submissions").doc(key).set({...data,submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  // ★ 보안(2026-10-22): 제출물에 작성자 이메일 저장 → 학생은 본인 제출물만 읽을 수 있음
+  const _cu=auth.currentUser;
+  const _isT=_cu&&sameEmail(_cu.email,TEACHER_EMAIL);
+  const em=_isT?normEmail((S.studentInfo[data.name]||{}).email):normEmail(_cu&&_cu.email);
+  await fsdb.collection("submissions").doc(key).set({...data,...(em?{email:em}:{}),submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
 }
 async function saveFeedback(key,fb){
   await fsdb.collection("submissions").doc(key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp()});
@@ -3160,12 +3164,14 @@ async function saveRoster(names){
   const ae=buildAllowedEmails(S.studentInfo,names);
   await fsdb.collection("config").doc("roster").set({names,studentInfo:S.studentInfo,allowedEmails:ae});
   S.allowedEmails=ae;
+  syncWsfAllowed().catch(e=>console.warn('wsfAllowed 동기화 실패:',e.code||e.message));
 }
 async function saveStudentInfo(name,field,value){
   S.studentInfo={...S.studentInfo,[name]:{...S.studentInfo[name],[field]:value}};
   const ae=buildAllowedEmails(S.studentInfo,S.roster);
   await fsdb.collection("config").doc("roster").update({studentInfo:S.studentInfo,allowedEmails:ae});
   S.allowedEmails=ae;
+  syncWsfAllowed().catch(e=>console.warn('wsfAllowed 동기화 실패:',e.code||e.message));
 }
 // 기존 데이터에 allowedEmails가 없거나 어긋나면 맞춰줌 (강사 로그인 시 자동 실행)
 async function syncAllowedEmails(){
@@ -3178,6 +3184,38 @@ async function syncAllowedEmails(){
     if(!same){ await fsdb.collection("config").doc("roster").update({allowedEmails:want}); }
     return want;
   }catch(e){ console.warn('허용 이메일 동기화 실패:',e.code||e.message); return null; }
+}
+// ★ 보안(2026-10-22): 학생은 명단 전체 대신 본인 문서 wsfAllowed/{이메일} 하나만 읽음.
+// 강사 로그인·명단 저장 때 자동으로 맞추고, 이메일 없는 기존 제출물에 email을 채움.
+async function syncWsfAllowed(){
+  const doc=await fsdb.collection("config").doc("roster").get();
+  if(!doc.exists)return null;
+  const names=doc.data().names||[], info=doc.data().studentInfo||{};
+  let enn={};
+  try{ const e=await fsdb.collection('config').doc('enneagram').get(); enn=e.exists?(e.data().data||{}):{}; }catch(e){}
+  const want={};
+  names.forEach(n=>{ const i=info[n]||{}; const em=normEmail(i.email);
+    if(em&&!sameEmail(em,TEACHER_EMAIL)&&!want[em]) want[em]={name:n,email:em,trait:i.trait||'',enneagram:enn[n]||''}; });
+  const cur=await fsdb.collection('wsfAllowed').get();
+  const curMap={}; cur.docs.forEach(d=>{curMap[d.id]=d.data();});
+  let added=0,updated=0,removed=0;
+  for(const em of Object.keys(want)){
+    const w=want[em],c=curMap[em];
+    if(!c){ await fsdb.collection('wsfAllowed').doc(em).set(w); added++; }
+    else if(c.name!==w.name||c.trait!==w.trait||c.enneagram!==w.enneagram){ await fsdb.collection('wsfAllowed').doc(em).set(w); updated++; }
+  }
+  // 명단에서 빠진 학생의 접근 문서만 해제 (제출물은 그대로 보존)
+  for(const id of Object.keys(curMap)){ if(!want[id]){ await fsdb.collection('wsfAllowed').doc(id).delete(); removed++; } }
+  const nameToEmail={}; Object.keys(want).forEach(em=>{nameToEmail[want[em].name]=em;});
+  const subs=await fsdb.collection('submissions').get();
+  let filled=0,already=0,unmatched=0;
+  for(const d of subs.docs){
+    const x=d.data();
+    if(x.email){already++;continue;}
+    const em=nameToEmail[x.name]||normEmail((info[x.name]||{}).email);
+    if(em){ await fsdb.collection('submissions').doc(d.id).update({email:em}); filled++; } else unmatched++;
+  }
+  return {rosterNames:names.length,allowed:Object.keys(want).length,added,updated,removed,subsTotal:subs.size,filled,already,unmatched};
 }
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
@@ -4272,7 +4310,8 @@ function buildStudentForm(){
 }
 
 async function submitForm(){
-  const name=document.getElementById("name-select")?.value||S.name;
+  const _isTch=S.user&&sameEmail(S.user.email,TEACHER_EMAIL);
+  const name=_isTch?(document.getElementById("name-select")?.value||S.name):(S.roster[0]||'');
   if(!name){set({formError:"이름을 선택해주세요."});return}
   if(isLocked(S.month,S.week)){set({formError:"🔒 "+S.month+"월 "+S.week+"주차는 잠금 처리되어 제출할 수 없어요."});return}
   const pledge=document.getElementById("pledge-input")?.value||S.nw.다짐||"";
@@ -4660,19 +4699,17 @@ function studentLogin(){
   auth.signInWithPopup(googleProvider).then(async result=>{
     const user=result.user;
     if(sameEmail(user.email,TEACHER_EMAIL)){set({});return;}
-    // ★ 로그인 직후에는 명단이 아직 로드되지 않았을 수 있음 → 반드시 직접 조회 후 판정
-    let info=S.studentInfo;
-    if(!info||!Object.keys(info).length){
-      try{
-        const d=await fsdb.collection('config').doc('roster').get();
-        if(d.exists){ info=d.data().studentInfo||{}; S.studentInfo=info; S.roster=d.data().names||[]; }
-      }catch(e){
-        // 명단을 읽지 못하면 판단 불가 → 차단하지 말고 통과시킨 뒤 정식 화면에서 다시 검사
-        console.warn('명단 조회 실패:',e.code||e.message); set({}); return;
-      }
+    // ★ 보안(2026-10-22): 명단 전체가 아니라 본인 등록 문서 하나만 확인
+    let ok=false,errored=0;
+    try{ const md=await fsdb.collection('wsfAllowed').doc(normEmail(user.email)).get(); ok=md.exists; }catch(e){ errored++; }
+    if(!ok){
+      // 전환기 호환(이전 규칙에서만 동작)
+      try{ const d=await fsdb.collection('config').doc('roster').get();
+        if(d.exists){ const info=d.data().studentInfo||{}; ok=Object.values(info).some(i=>i&&sameEmail(i.email,user.email)); } }
+      catch(e){ errored++; }
     }
-    const allowedEmails=Object.values(info||{}).map(i=>i&&i.email).filter(Boolean);
-    if(allowedEmails.some(e=>sameEmail(e,user.email))){set({});}
+    if(!ok&&errored>=2){ console.warn('등록 확인 실패'); set({}); return; }
+    if(ok){set({});}
     else{auth.signOut();alert('접근 권한이 없습니다.\n선생님께 구글 이메일 등록을 요청해주세요.\n\n로그인한 계정: '+user.email);}
   }).catch(e=>alert('로그인 실패: '+e.message));
 }
@@ -4688,10 +4725,11 @@ auth.onAuthStateChanged(async user=>{
   render();
   if(user){
     // 로그인한 사용자만 개인정보 로드. 프로필(상담내용)은 강사 전용.
-    await loadEnneagram();
     if(sameEmail(user.email,TEACHER_EMAIL)){
+      await loadEnneagram();   // 이름↔유형 전체 매핑은 강사만 (학생은 initApp에서 본인 것만)
       await loadProfiles();
       S.allowedEmails=await syncAllowedEmails();   // 명단 자동 동기화
+      try{ window._wsfSync=await syncWsfAllowed(); console.log('wsfAllowed 동기화', window._wsfSync); }catch(e){ console.warn('wsfAllowed 동기화 실패:',e.code||e.message); }
     }else STUDENT_PROFILE={};
     render();
   }else{
@@ -4987,18 +5025,44 @@ function render(){
 // ── 초기화 (실시간 리스너) ──
 async function initApp(){
   try{
-    const rosterDoc=await fsdb.collection("config").doc("roster").get();
-    S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
-    S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
+    const _u=auth.currentUser;
+    const _isT=!!(_u&&sameEmail(_u.email,TEACHER_EMAIL));
+    if(_isT){
+      const rosterDoc=await fsdb.collection("config").doc("roster").get();
+      S.roster=rosterDoc.exists?(rosterDoc.data().names||[]):[];
+      S.studentInfo=rosterDoc.exists?(rosterDoc.data().studentInfo||{}):{};
+    }else{
+      // ★ 보안(2026-10-22): 학생은 본인 등록 문서만 읽음 (다른 학생 이름·이메일 비공개)
+      let me=null;
+      try{ const md=await fsdb.collection('wsfAllowed').doc(normEmail(_u&&_u.email)).get(); if(md.exists) me=md.data(); }catch(e){}
+      if(!me){
+        try{ const rd=await fsdb.collection("config").doc("roster").get();
+          const info=rd.exists?(rd.data().studentInfo||{}):{};
+          const nm=Object.keys(info).find(n=>info[n]&&sameEmail(info[n].email,_u&&_u.email));
+          if(nm) me={name:nm,trait:info[nm].trait||'',enneagram:''}; }catch(e){}
+      }
+      if(!me){ const err=new Error('permission-denied'); err.code='permission-denied'; throw err; }
+      S.roster=[me.name]; S.studentInfo={[me.name]:{trait:me.trait||''}}; S.name=me.name;
+      STUDENT_ENNEAGRAM=me.enneagram?{[me.name]:me.enneagram}:{};
+    }
     const locksDoc=await fsdb.collection("config").doc("locks").get();
     S.lockedWeeks=locksDoc.exists?(locksDoc.data().locked||[]):[];
     fsdb.collection("config").doc("locks").onSnapshot(snap=>{
       S.lockedWeeks=snap.exists?(snap.data().locked||[]):[];render();
     });
-    fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
-      S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
-      render();
-    });
+    if(_isT){
+      fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
+        S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
+        render();
+      });
+    }else{
+      // 학생: 본인 이메일이 적힌 제출물만
+      const _ts=x=>{const t=x&&x.submittedAt;return t&&t.toMillis?t.toMillis():0;};
+      fsdb.collection("submissions").where("email","==",normEmail(_u.email)).onSnapshot(snap=>{
+        S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()})).sort((a,b)=>_ts(b.data)-_ts(a.data));
+        render();
+      },e=>console.warn('제출물 조회 실패:',e.code||e.message));
+    }
   }catch(e){
     _appInited=false;   // 재시도 가능하도록 복구
     const perm=(e.code==='permission-denied'||/permission/i.test(e.message||''));
