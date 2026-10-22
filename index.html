@@ -3031,11 +3031,9 @@ async function loadEnneagram(){
 // ── Firestore 헬퍼 ──
 async function saveSubmission(data){
   const key=`${data.name}_${data.month}-${data.week}`;
-  // ★ 보안(2026-10-22): 제출물에 작성자 이메일 저장 → 학생은 본인 제출물만 읽을 수 있음
-  const _cu=auth.currentUser;
-  const _isT=_cu&&sameEmail(_cu.email,TEACHER_EMAIL);
-  const em=_isT?normEmail((S.studentInfo[data.name]||{}).email):normEmail(_cu&&_cu.email);
-  await fsdb.collection("submissions").doc(key).set({...data,...(em?{email:em}:{}),submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  // 2026-10-22 대표 결정: 등록 학생끼리 주차별 상호 열람이 설계 의도 → 제출물에 이메일을 넣지 않음(다른 학생에게 이메일이 내려가지 않게)
+  const {email:_dropEmail,...clean}=data||{};
+  await fsdb.collection("submissions").doc(key).set({...clean,submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
 }
 async function saveFeedback(key,fb){
   await fsdb.collection("submissions").doc(key).update({generatedFeedback:fb,feedbackAt:firebase.firestore.FieldValue.serverTimestamp()});
@@ -3206,16 +3204,16 @@ async function syncWsfAllowed(){
   }
   // 명단에서 빠진 학생의 접근 문서만 해제 (제출물은 그대로 보존)
   for(const id of Object.keys(curMap)){ if(!want[id]){ await fsdb.collection('wsfAllowed').doc(id).delete(); removed++; } }
-  const nameToEmail={}; Object.keys(want).forEach(em=>{nameToEmail[want[em].name]=em;});
+  // 2026-10-22 대표 결정: 학생끼리 주차별 상호 열람(설계 의도). 학생 화면에 필요한 이름·유형만 공개 목록으로(이메일·연락처 제외)
+  const traits={}; names.forEach(n=>{ const i=info[n]||{}; traits[n]=i.trait||''; });
+  await fsdb.collection('config').doc('rosterPublic').set({names,traits,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  // 오전에 넣었던 제출물 email 필드는 다른 학생에게 이메일이 보이므로 제거(필드만, 제출물 문서는 그대로)
   const subs=await fsdb.collection('submissions').get();
-  let filled=0,already=0,unmatched=0;
+  let emailCleared=0;
   for(const d of subs.docs){
-    const x=d.data();
-    if(x.email){already++;continue;}
-    const em=nameToEmail[x.name]||normEmail((info[x.name]||{}).email);
-    if(em){ await fsdb.collection('submissions').doc(d.id).update({email:em}); filled++; } else unmatched++;
+    if(d.data().email!==undefined){ await fsdb.collection('submissions').doc(d.id).update({email:firebase.firestore.FieldValue.delete()}); emailCleared++; }
   }
-  return {rosterNames:names.length,allowed:Object.keys(want).length,added,updated,removed,subsTotal:subs.size,filled,already,unmatched};
+  return {rosterNames:names.length,allowed:Object.keys(want).length,added,updated,removed,subsTotal:subs.size,emailCleared};
 }
 async function delSubmission(key){
   await fsdb.collection("submissions").doc(key).delete();
@@ -4725,8 +4723,8 @@ auth.onAuthStateChanged(async user=>{
   render();
   if(user){
     // 로그인한 사용자만 개인정보 로드. 프로필(상담내용)은 강사 전용.
+    await loadEnneagram();   // 원래 설계: 등록 학생도 갤러리에서 유형 표시 (규칙상 등록 학생·강사만 읽힘)
     if(sameEmail(user.email,TEACHER_EMAIL)){
-      await loadEnneagram();   // 이름↔유형 전체 매핑은 강사만 (학생은 initApp에서 본인 것만)
       await loadProfiles();
       S.allowedEmails=await syncAllowedEmails();   // 명단 자동 동기화
       try{ window._wsfSync=await syncWsfAllowed(); console.log('wsfAllowed 동기화', window._wsfSync); }catch(e){ console.warn('wsfAllowed 동기화 실패:',e.code||e.message); }
@@ -5042,27 +5040,24 @@ async function initApp(){
           if(nm) me={name:nm,trait:info[nm].trait||'',enneagram:''}; }catch(e){}
       }
       if(!me){ const err=new Error('permission-denied'); err.code='permission-denied'; throw err; }
-      S.roster=[me.name]; S.studentInfo={[me.name]:{trait:me.trait||''}}; S.name=me.name;
-      STUDENT_ENNEAGRAM=me.enneagram?{[me.name]:me.enneagram}:{};
+      // 갤러리 표시용 이름·유형(공개 목록, 이메일 없음) + 본인 이메일만
+      let pubTraits={};
+      try{ const pd=await fsdb.collection('config').doc('rosterPublic').get(); if(pd.exists) pubTraits=pd.data().traits||{}; }catch(e){}
+      const info={}; Object.keys(pubTraits).forEach(n=>{ info[n]={trait:pubTraits[n]||''}; });
+      info[me.name]={...(info[me.name]||{}),trait:me.trait||(info[me.name]||{}).trait||'',email:normEmail(_u&&_u.email)};
+      S.roster=[me.name]; S.studentInfo=info; S.name=me.name;
+      if(me.enneagram&&!STUDENT_ENNEAGRAM[me.name]) STUDENT_ENNEAGRAM={...STUDENT_ENNEAGRAM,[me.name]:me.enneagram};
     }
     const locksDoc=await fsdb.collection("config").doc("locks").get();
     S.lockedWeeks=locksDoc.exists?(locksDoc.data().locked||[]):[];
     fsdb.collection("config").doc("locks").onSnapshot(snap=>{
       S.lockedWeeks=snap.exists?(snap.data().locked||[]):[];render();
     });
-    if(_isT){
-      fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
-        S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
-        render();
-      });
-    }else{
-      // 학생: 본인 이메일이 적힌 제출물만
-      const _ts=x=>{const t=x&&x.submittedAt;return t&&t.toMillis?t.toMillis():0;};
-      fsdb.collection("submissions").where("email","==",normEmail(_u.email)).onSnapshot(snap=>{
-        S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()})).sort((a,b)=>_ts(b.data)-_ts(a.data));
-        render();
-      },e=>console.warn('제출물 조회 실패:',e.code||e.message));
-    }
+    // 2026-10-22 대표 결정: 등록 학생끼리 주차별 제출물·홍쌤 코멘트 상호 열람(원래 설계). 외부인은 규칙으로 차단.
+    fsdb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snap=>{
+      S.subs=snap.docs.map(doc=>({key:doc.id,data:doc.data()}));
+      render();
+    },e=>console.warn('제출물 조회 실패:',e.code||e.message));
   }catch(e){
     _appInited=false;   // 재시도 가능하도록 복구
     const perm=(e.code==='permission-denied'||/permission/i.test(e.message||''));
