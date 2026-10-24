@@ -3302,7 +3302,8 @@ async function updateMW(){
   if(oldKey===newKey){set({editMW:false});return;}
   try{
     const _raw=((S._rawSubs||[]).find(x=>x.key===oldKey)||{}).data||d;
-    const {originalFeedback:_noAi,...dRaw}=_raw;   // AI 원본은 학생 문서로 옮기지 않음
+    const {originalFeedback:_noAi,teacherNote:_noNote,...dRaw}=_raw;   // AI 원본·생성 전 메모는 학생 문서로 옮기지 않음 (reviews와 함께 이동)
+    if(typeof _noNote==='string'&&_noNote.trim()){ try{ await fsdb.collection('reviews').doc(oldKey).set({teacherNote:_noNote},{merge:true}); }catch(e){} }
     await fsdb.collection("submissions").doc(newKey).set({...dRaw,month:newMonth,week:newWeek,submittedAt:dRaw.submittedAt||firebase.firestore.FieldValue.serverTimestamp()});
     try{ const r=await fsdb.collection("reviews").doc(oldKey).get();
       if(r.exists){ await fsdb.collection("reviews").doc(newKey).set({...r.data(),key:newKey,month:String(newMonth),week:String(newWeek)},{merge:true}); await fsdb.collection("reviews").doc(oldKey).delete(); } }
@@ -4527,7 +4528,7 @@ function buildInstructor(){
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
   </div>
-  ${(()=>{const n=(S._rawSubs||[]).filter(s=>s.data.originalFeedback).length;return n?`<div class="card" style="border-color:#f3b4b4;background:#fff7f7"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-size:12px;line-height:1.6"><b style="color:#c0392b">🔐 학생 문서에 예전 AI 원본 ${n}건이 남아 있습니다</b><br><span style="color:#86868b">학생 브라우저로 내려갈 수 있는 상태입니다. 선생님 전용 저장소로 옮기세요 (백업 파일을 먼저 내려받습니다).</span></div><button class="btn-blue btn-sm" onclick="migrateAiOriginals()" style="white-space:nowrap">비공개로 옮기기</button></div></div>`:'';})()}${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${learnCard}${timeCard}${tabBar}${listHTML}${detailHTML}
+  ${(()=>{const _l=(S._rawSubs||[]).filter(s=>s.data.originalFeedback||('teacherNote' in s.data));const n=_l.length;const _na=_l.filter(s=>s.data.originalFeedback).length,_nn=_l.filter(s=>'teacherNote' in s.data).length;return n?`<div class="card" style="border-color:#f3b4b4;background:#fff7f7"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-size:12px;line-height:1.6"><b style="color:#c0392b">🔐 학생 문서 ${n}건에 선생님용 내용이 남아 있습니다 (AI 원본 ${_na}건 · 생성 전 메모 ${_nn}건)</b><br><span style="color:#86868b">학생 브라우저로 내려갈 수 있는 상태입니다. 선생님 전용 저장소로 옮기세요 (백업 파일을 먼저 내려받습니다).</span></div><button class="btn-blue btn-sm" onclick="migrateAiOriginals()" style="white-space:nowrap">비공개로 옮기기</button></div></div>`:'';})()}${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${learnCard}${timeCard}${tabBar}${listHTML}${detailHTML}
   </div>`;
 }
 
@@ -4728,7 +4729,7 @@ async function generateFeedback(){
     // ★ 저장 안 했거나 재렌더로 유실된 경우까지 대비해 화면 값을 우선 사용
     const liveNote=(document.getElementById('tnote-공통')?buildNote():S.sel.data.teacherNote) || "";
     if(liveNote.trim()&&liveNote!==S.sel.data.teacherNote){
-      try{ await fsdb.collection("submissions").doc(S.sel.key).update({teacherNote:liveNote}); }catch(e){}
+      try{ await saveNotePrivate(S.sel.key,S.sel.data,liveNote); }catch(e){}
       S.sel={...S.sel,data:{...S.sel.data,teacherNote:liveNote}};
     }
     const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData,prevRecord2:S.prevData2,teacherNote:liveNote}),S.apiKey);
@@ -4917,7 +4918,7 @@ function buildNote(){
 async function saveTeacherNote(){
   if(!S.sel)return;
   const v=buildNote();
-  await fsdb.collection("submissions").doc(S.sel.key).update({teacherNote:v});
+  await saveNotePrivate(S.sel.key,S.sel.data,v);
   const d={...S.sel.data,teacherNote:v};
   S.subs=S.subs.map(s=>s.key===S.sel.key?{...s,data:d}:s);
   S.sel={...S.sel,data:d};
@@ -5104,6 +5105,15 @@ function render(){
   document.getElementById("app").innerHTML=nav+content;
 }
 
+// ── 생성 전 메모 저장 (선생님 전용 reviews) — 2026-10-24: 학생 문서에는 쓰지 않는다 ──
+async function saveNotePrivate(key,data,v){
+  await fsdb.collection('reviews').doc(key).set({key,name:data.name,month:String(data.month),week:String(data.week),teacherNote:v,teacherNoteAt:Date.now()},{merge:true});
+  S._aiOrig={...(S._aiOrig||{}),[key]:{...((S._aiOrig||{})[key]||{}),teacherNote:v}};
+  const raw=((S._rawSubs||[]).find(x=>x.key===key)||{}).data;
+  if(raw&&('teacherNote' in raw)){
+    try{ await fsdb.collection('submissions').doc(key).update({teacherNote:firebase.firestore.FieldValue.delete()}); }catch(e){ console.warn('예전 메모 정리 실패:',e.code||e.message); }
+  }
+}
 // ── AI 원본 합치기 (선생님 브라우저 메모리에서만) ──
 function mergeAiOriginals(raw){
   const m=S._aiOrig||{};
@@ -5111,30 +5121,42 @@ function mergeAiOriginals(raw){
     const d={...s.data};
     if(!d.originalFeedback&&a.aiOriginal)d.originalFeedback=a.aiOriginal;
     if(!d.generatedAt&&a.aiGeneratedAt)d.generatedAt={toDate:()=>new Date(a.aiGeneratedAt)};
+    if(typeof a.teacherNote==='string')d.teacherNote=a.teacherNote;   // 선생님 전용 메모가 우선
     return {key:s.key,data:d};});
 }
 // ── 학생 문서에 남아 있는 예전 AI 원본을 선생님 전용 reviews로 옮기기 (1회성) ──
 //   ① 전체를 JSON으로 내 PC에 백업 다운로드 → ② reviews에 복사 → ③ 다시 읽어 일치 확인 → ④ 학생 문서에서 그 필드만 삭제
 async function migrateAiOriginals(){
   if(!(S.user&&sameEmail(S.user.email,TEACHER_EMAIL)))return;
-  const left=(S._rawSubs||[]).filter(s=>s.data.originalFeedback);
-  if(!left.length){alert('학생 문서에 남은 AI 원본이 없습니다.');return;}
-  if(!confirm(`학생 문서 ${left.length}건에 남아 있는 AI 원본을 선생님 전용 저장소로 옮깁니다.\n\n① 먼저 전체 백업 파일(JSON)을 내려받고\n② 복사 후 다시 읽어 일치하는지 확인한 다음\n③ 학생 문서에서 해당 필드만 지웁니다. (승인 피드백·제출 내용은 그대로)\n\n진행할까요?`))return;
-  const backup={exportedAt:new Date().toISOString(),items:left.map(s=>({key:s.key,originalFeedback:s.data.originalFeedback,generatedAt:toDate(s.data.generatedAt)?toDate(s.data.generatedAt).toISOString():null}))};
-  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(backup,null,1)],{type:'application/json'}));a.download='AI원본_백업_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){}
+  const left=(S._rawSubs||[]).filter(s=>s.data.originalFeedback||('teacherNote' in s.data));
+  if(!left.length){alert('학생 문서에 남은 AI 원본·생성 전 메모가 없습니다.');return;}
+  const nAi=left.filter(s=>s.data.originalFeedback).length,nNote=left.filter(s=>'teacherNote' in s.data).length;
+  if(!confirm(`학생 문서 ${left.length}건에 남아 있는 선생님용 내용(AI 원본 ${nAi}건, 생성 전 메모 ${nNote}건)을 선생님 전용 저장소로 옮깁니다.\n\n① 먼저 전체 백업 파일(JSON)을 내려받고\n② 복사 후 다시 읽어 일치하는지 확인한 다음\n③ 학생 문서에서 해당 필드만 지웁니다. (승인 피드백·제출 내용은 그대로)\n\n진행할까요?`))return;
+  const backup={exportedAt:new Date().toISOString(),items:left.map(s=>({key:s.key,originalFeedback:s.data.originalFeedback||null,teacherNote:('teacherNote' in s.data)?s.data.teacherNote:null,generatedAt:toDate(s.data.generatedAt)?toDate(s.data.generatedAt).toISOString():null}))};
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(backup,null,1)],{type:'application/json'}));a.download=(nNote&&!nAi?'생성전메모_백업_':nNote?'AI원본_메모_백업_':'AI원본_백업_')+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){}
   let ok=0,fail=[];
   for(const s of left){
     try{
       const ref=fsdb.collection('reviews').doc(s.key);
       const ga=toDate(s.data.generatedAt);
-      await ref.set({key:s.key,name:s.data.name,month:String(s.data.month),week:String(s.data.week),aiOriginal:s.data.originalFeedback,aiGeneratedAt:ga?ga.getTime():null,aiMigratedAt:Date.now()},{merge:true});
-      const chk=await ref.get();
-      if(!chk.exists||chk.data().aiOriginal!==s.data.originalFeedback)throw new Error('복사본 확인 불일치');
-      await fsdb.collection('submissions').doc(s.key).update({originalFeedback:firebase.firestore.FieldValue.delete()});
+      const before=await ref.get();const prev=before.exists?before.data():{};
+      const w={key:s.key,name:s.data.name,month:String(s.data.month),week:String(s.data.week)};
+      const del={};
+      if(s.data.originalFeedback){w.aiOriginal=s.data.originalFeedback;w.aiGeneratedAt=ga?ga.getTime():null;w.aiMigratedAt=Date.now();del.originalFeedback=firebase.firestore.FieldValue.delete();}
+      if('teacherNote' in s.data){
+        // reviews에 더 새 메모가 이미 있으면 그대로 둔다 (예전 메모는 백업 파일에 있음)
+        if(typeof prev.teacherNote!=='string'){w.teacherNote=String(s.data.teacherNote||'');w.teacherNoteMigratedAt=Date.now();}
+        del.teacherNote=firebase.firestore.FieldValue.delete();
+      }
+      await ref.set(w,{merge:true});
+      const chk=(await ref.get()).data()||{};
+      if(s.data.originalFeedback&&chk.aiOriginal!==s.data.originalFeedback)throw new Error('AI 원본 복사본 확인 불일치');
+      if(('teacherNote' in s.data)&&typeof chk.teacherNote!=='string')throw new Error('메모 복사본 확인 불일치');
+      await fsdb.collection('submissions').doc(s.key).update(del);
       ok++;
     }catch(e){fail.push(s.key+': '+(e.code||e.message));}
   }
-  alert(`AI 원본 이전 완료: ${ok}건${fail.length?`\n실패 ${fail.length}건 (학생 문서에 그대로 남아 있음):\n`+fail.slice(0,8).join('\n'):''}`);
+  alert(`비공개 이전 완료: ${ok}건${fail.length?`\n실패 ${fail.length}건 (학생 문서에 그대로 남아 있음):\n`+fail.slice(0,8).join('\n'):''}`);
   render();
 }
 
@@ -5180,7 +5202,7 @@ async function initApp(){
     // 2026-10-24: AI 원본은 선생님 전용 reviews에만 있다 → 선생님 화면에서만 메모리상으로 합친다
     if(_isT){
       fsdb.collection("reviews").onSnapshot(snap=>{
-        const m={};snap.docs.forEach(doc=>{const v=doc.data();if(v&&(v.aiOriginal||v.aiGeneratedAt))m[doc.id]={aiOriginal:v.aiOriginal||'',aiGeneratedAt:v.aiGeneratedAt||null};});
+        const m={};snap.docs.forEach(doc=>{const v=doc.data();if(v&&(v.aiOriginal||v.aiGeneratedAt||typeof v.teacherNote==='string')){m[doc.id]={aiOriginal:v.aiOriginal||'',aiGeneratedAt:v.aiGeneratedAt||null};if(typeof v.teacherNote==='string')m[doc.id].teacherNote=v.teacherNote;}});
         S._aiOrig=m; if(S._rawSubs){S.subs=mergeAiOriginals(S._rawSubs);} render();
       },e=>console.warn('reviews 조회 실패(보안 규칙 확인):',e.code||e.message));
     }
@@ -5989,7 +6011,7 @@ function rvConfirmReapprove(){const g=R.modal&&R.modal.goNext;R.reapprove=true;R
 async function rvSaveMemo(){
   if(!R.key)return;const key=R.key;
   try{
-    await saveTeacherNote();                                   // 기존 과목별 생성 전 메모 (submissions.teacherNote)
+    await saveTeacherNote();                                   // 기존 과목별 생성 전 메모 (2026-10-24부터 선생님 전용 reviews.teacherNote)
     const ok=await rvWriteMeta(key,{judgment:{...(R.judg[key]||{})}});
     rvMsg(ok?'ok':'warn',ok?'메모 저장됨':'과목 메모는 저장됨. 판단 메모는 이 브라우저에만 저장됨 (선생님 전용 저장소 권한 없음)');
   }catch(e){rvMsg('err','메모 저장 실패: '+e.message,'rvSaveMemo()');}
