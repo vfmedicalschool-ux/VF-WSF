@@ -5300,7 +5300,9 @@ function rvNorm(t){return String(t||'').replace(/[\s.,!?~'"“”‘’()\[\]·�
 function rvMonthIdx(m){return MONTH_SEQ.indexOf(String(m));}
 function rvWeekOrd(m,w){return rvMonthIdx(m)*WEEKS_PER_MONTH+Number(w);}
 // 학생 원문 서명 — 학생이 다시 제출하면 바뀐다 (선생님 메모는 제외)
-function rvStudentSig(d){if(!d)return '';return rvHash(JSON.stringify({s:d.subjects||{},n:d.nw||{}}));}
+// 키 순서와 무관한 직렬화 — 서버에서 읽은 문서와 로컬 캐시의 필드 순서가 달라도 같은 값이면 같은 서명
+function rvStable(v){if(v&&typeof v==='object'&&!Array.isArray(v)){return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+rvStable(v[k])).join(',')+'}';}if(Array.isArray(v))return '['+v.map(rvStable).join(',')+']';return JSON.stringify(v===undefined?null:v);}
+function rvStudentSig(d){if(!d)return '';return rvHash(rvStable({s:d.subjects||{},n:d.nw||{}}));}
 
 // ── 상태 계산 ─────────────────────────────────────────────
 function rvLocalDraft(key){try{return JSON.parse(localStorage.getItem('_vf_rv_local_'+key)||'null');}catch(e){return null;}}
