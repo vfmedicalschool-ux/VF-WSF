@@ -5709,7 +5709,7 @@ ${block}`;
 function rvParseJSON(t){
   let s=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
   const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<a)throw new Error('AI 응답에서 JSON을 찾지 못했습니다');
-  return JSON.parse(s.slice(a,b+1));
+  try{return JSON.parse(s.slice(a,b+1));}catch(e){throw new Error('AI 응답의 JSON 형식이 깨졌습니다 ('+e.message+') — 재시도하세요');}
 }
 function rvCleanPrep(raw,src){
   const arr=x=>Array.isArray(x)?x:[];
@@ -5728,17 +5728,29 @@ function rvCleanPrep(raw,src){
   };
 }
 // AI 호출 (기존 callClaude와 같은 경로·헤더) + 타임아웃
-async function rvCallAI(prompt,maxTokens,timeoutMs){
+// API 오류를 원인과 조치가 보이는 한국어로 (2026-10-25: 일괄 준비 실패 사유가 화면에 안 보이던 문제)
+function rvErrKo(m){
+  const t=String(m||'');
+  if(/invalid x-api-key|authentication|401/i.test(t))return 'API 키가 올바르지 않습니다 — 🔑 API 키를 다시 확인하세요 ('+t+')';
+  if(/credit balance|billing|402/i.test(t))return 'API 사용 잔액이 부족합니다 — Anthropic 콘솔에서 결제·잔액을 확인하세요 ('+t+')';
+  if(/rate limit|429/i.test(t))return '요청이 너무 많습니다 — 1~2분 뒤 실패한 학생만 재시도하세요 ('+t+')';
+  if(/overloaded|529|503/i.test(t))return 'AI 서버가 일시적으로 혼잡합니다 — 잠시 뒤 재시도하세요 ('+t+')';
+  if(/model/i.test(t)&&/not.?found|does not exist|deprecated/i.test(t))return 'AI 모델 이름을 찾을 수 없습니다 — 개발 수정이 필요합니다 ('+t+')';
+  if(/Failed to fetch|NetworkError|Load failed/i.test(t))return '네트워크 연결 문제로 AI 서버에 닿지 못했습니다 ('+t+')';
+  return t;
+}
+async function rvCallAI(prompt,maxTokens,timeoutMs,opts){
   const key=(S.apiKey||'').trim();if(!key)throw new Error('API 키가 설정되지 않았습니다');
   const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),timeoutMs||120000);
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:ctl.signal,headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({model:RV_MODEL,max_tokens:maxTokens||4000,messages:[{role:"user",content:prompt}]})});
     let data={};try{data=await res.json();}catch(e){}
-    if(!res.ok)throw new Error((data.error&&data.error.message)||('API 오류 '+res.status));
+    if(!res.ok)throw new Error(rvErrKo((data.error&&data.error.message)||('API 오류 '+res.status)));
     const text=(data.content||[]).map(b=>b.text||'').join('');if(!text)throw new Error('API 응답이 비어 있습니다');
+    if(opts&&opts.json&&data.stop_reason==='max_tokens')throw new Error('AI 응답이 너무 길어 중간에 잘렸습니다 (최대 '+(maxTokens||4000)+' 토큰). 실패한 학생만 재시도하세요');
     return text;
-  }catch(e){if(e.name==='AbortError')throw new Error('응답 시간 초과 ('+Math.round((timeoutMs||120000)/1000)+'초) — 잠시 후 다시 시도하세요');throw e;}
+  }catch(e){if(e.name==='AbortError')throw new Error('응답 시간 초과 ('+Math.round((timeoutMs||120000)/1000)+'초) — 잠시 후 다시 시도하세요');if(e instanceof TypeError)throw new Error(rvErrKo(e.message));throw e;}
   finally{clearTimeout(t);}
 }
 // 한 학생 검토 준비. 일괄 실행에서도 같은 함수를 쓴다.
@@ -5756,7 +5768,8 @@ async function rvPrepareOne(key,opts){
   if(ex&&ex.inputHash===h&&!(opts&&opts.force))return 'same';  // 같은 입력이면 다시 부르지 않음
   R.busy['prep:'+key]=true;
   try{
-    const raw=rvParseJSON(await rvCallAI(rvPrepPrompt(src),3000,90000));
+    // 2026-10-25: 원문·근거가 많은 학생은 3,000 토큰을 넘겨 JSON이 잘려 실패했다 → 상한 8,000
+    const raw=rvParseJSON(await rvCallAI(rvPrepPrompt(src),8000,180000,{json:true}));
     const data=rvCleanPrep(raw,src);
     const now=rvSub(key);
     if(!now||rvStudentSig(now.data)!==rvStudentSig(item.data))throw new Error('준비하는 동안 학생이 내용을 다시 제출했습니다. 다시 실행하세요');
@@ -5799,7 +5812,8 @@ async function rvBatchStart(keys,onlyFailed){
   };
   await Promise.all(Array.from({length:Math.min(R.batch.conc,list.length)},worker));
   R.batch.running=false;
-  rvMsg(R.batch.failed.length?'warn':'ok',`일괄 준비 ${R.batch.stop?'중단':'완료'} — 처리 ${R.batch.done}/${R.batch.total}명, 기존 결과 재사용 ${R.batch.skipped}명, 실패 ${R.batch.failed.length}명`);
+  const _fr=[...new Set(R.batch.failed.map(f=>f.err))];
+  rvMsg(R.batch.failed.length?'warn':'ok',`일괄 준비 ${R.batch.stop?'중단':'완료'} — 처리 ${R.batch.done}/${R.batch.total}명, 기존 결과 재사용 ${R.batch.skipped}명, 실패 ${R.batch.failed.length}명`+(_fr.length?` · 실패 사유: ${_fr.slice(0,2).join(' / ')}`:''));
   render();
 }
 function rvBatchStop(){if(R.batch)R.batch.stop=true;render();}
@@ -6018,7 +6032,7 @@ ${block}
 [초안]
 ${draft}`;
   try{
-    const raw=rvParseJSON(await rvCallAI(p,2000,90000));
+    const raw=rvParseJSON(await rvCallAI(p,4000,120000,{json:true}));
     const nd=rvNorm(draft);
     const issues=(Array.isArray(raw.issues)?raw.issues:[]).filter(x=>!x.sentence||nd.includes(rvNorm(x.sentence)))
       .map(x=>({type:String(x.type||''),sentence:String(x.sentence||''),reason:String(x.reason||''),ev:x.evidence?rvVerifyEv({src:x.src,quote:x.evidence},src):null}));
@@ -6317,7 +6331,7 @@ function rvTop(){
   const st=rvStats();const cur=rvCurrentWeek();
   const pct=st.total?Math.round(st.ok/st.total*100):0;
   const b=R.batch;
-  const batchHtml=b?`<span class="rv-pill ${b.running?'rv-s-wip':'rv-s-ok'}">일괄 준비 ${b.done}/${b.total}${b.failed.length?' · 실패 '+b.failed.length:''}</span>${b.running?`<button class="rv-btn sm" onclick="rvBatchStop()">중단</button>`:(b.failed.length?`<button class="rv-btn sm warn" onclick="rvBatchStart(null,true)">실패 ${b.failed.length}명만 재시도</button>`:'')}`:'';
+  const batchHtml=b?`<span class="rv-pill ${b.running?'rv-s-wip':'rv-s-ok'}">일괄 준비 ${b.done}/${b.total}${b.failed.length?' · 실패 '+b.failed.length:''}</span>${b.running?`<button class="rv-btn sm" onclick="rvBatchStop()">중단</button>`:(b.failed.length?`<button class="rv-btn sm warn" onclick="rvBatchStart(null,true)">실패 ${b.failed.length}명만 재시도</button><details class="rv-batch-fail" style="display:inline-block;margin-left:6px;font-size:11.5px"><summary style="cursor:pointer;color:#c45400">실패 사유 보기</summary><div style="position:absolute;z-index:30;background:#fff;border:1px solid #f3c9a1;border-radius:8px;padding:8px 10px;max-width:560px;box-shadow:0 4px 14px rgba(0,0,0,.12)">${b.failed.map(f=>`<div style="margin:2px 0"><b>${esc(f.name)}</b> — ${esc(f.err)}</div>`).join('')}</div></details>`:'')}`:'';
   return `<div class="rv-top" data-rv-region="top">
     <button class="rv-btn sm" onclick="rvToggle(false)">← 기존 화면</button>
     <b style="font-size:13px">🗂 주간 검토 <span class="rv-note">베타</span></b>
