@@ -4188,7 +4188,11 @@ const KR_NATURAL_RULES=[
 // (2) 홍쌤 문체 학습 — AI 원본과 최종 승인본에서 '고쳐 쓴 문장'만 짝지어, 끝맺음·낱말·형식이
 //     어떻게 바뀌었는지 집계한다. 내용(학생 사실)은 배우지 않고 말투만 배운다.
 //     다른 학생 정보가 새지 않도록 문장은 넣지 않고, 이름이 섞인 낱말·숫자 낱말은 버린다.
-function _styEnd(t){const w=String(t).trim().replace(/[\s.!?~…)\]"'”’:;,]+$/,'').split(/\s+/).pop()||'';return w.slice(-4);}
+// 맞춤법·띄어쓰기 차이(거에요/거예요, 해야해요/해야 해요)는 말투 차이가 아니므로 비교 전에 맞춘다
+function _styNorm(t){return String(t||'').replace(/거에요/g,'거예요').replace(/것 같/g,'것같');}
+function _styEnd(t){const w=_styNorm(t).trim().replace(/[\s.!?~…)\]"'”’:;,^]+$/,'').replace(/\s+/g,'');return w.slice(-4);}
+function _styShow(e){return String(e).replace(/(.)(거예요)$/,'$1 $2').replace(/([야면])(합니다|해요|됩니다|돼요)$/,'$1 $2');}
+const _STY_STOP=new Set(['이게','학생이','하고','부분','거예요','이건','그게','저도','이번','이번주','다음주','저번주','지금','이제','것도','것은','것이','하는','있는','같은']);
 function _styFmt(t){t=String(t||'');return{emoji:(t.match(/\p{Extended_Pictographic}/gu)||[]).length,bold:Math.floor((t.match(/\*\*/g)||[]).length/2),bullet:(t.match(/^\s*[-•·*]\s/mg)||[]).length,dash:(t.match(/—|–/g)||[]).length,title:(t.match(/^\s*#|피드백\s*$/mg)||[]).length,nl:(t.match(/\n/g)||[]).length,len:t.length};}
 function styleLearn(){
   const items=(S.subs||[]).filter(s=>s.data.feedbackApproved&&s.data.originalFeedback&&s.data.generatedFeedback);
@@ -4199,13 +4203,14 @@ function styleLearn(){
   const names=new Set();[...(S.roster||[]),...items.map(s=>s.data.name)].forEach(n=>{n=String(n||'');if(n.length>=2){names.add(n);if(n.length===3)names.add(n.slice(1));}});
   const clean=w=>String(w).replace(/^[("'“‘\[]+|[\s.,!?~…)\]"'”’:;]+$/g,'');
   const ok=w=>w&&/^[가-힣]+$/.test(w)&&w.length<=8&&![...names].some(n=>w.includes(n));
+  const okW=w=>ok(w)&&w.length>=2&&!_STY_STOP.has(w);
   const eo={},ef={},del={},add={},sw={};let so=0,sf=0;
   const fo={emoji:0,bold:0,bullet:0,dash:0,title:0,nl:0,len:0},ff={...fo};
   const inc=(o,k,n)=>{o[k]=(o[k]||0)+(n||1);};
   for(const it of items){
     const O=it.data.originalFeedback,F=it.data.generatedFeedback;
     const a=_styFmt(O),b=_styFmt(F);Object.keys(fo).forEach(k=>{fo[k]+=a[k];ff[k]+=b[k];});
-    const o=_sents(O),f=_sents(F);so+=o.length;sf+=f.length;
+    const o=_sents(_styNorm(O)),f=_sents(_styNorm(F));so+=o.length;sf+=f.length;
     o.forEach(t=>{const e=_styEnd(t);if(/[요다죠네까]$/.test(e)&&ok(e))inc(eo,e);});
     f.forEach(t=>{const e=_styEnd(t);if(/[요다죠네까]$/.test(e)&&ok(e))inc(ef,e);});
     const og=o.map(x=>_gram(_key(x))),fg=f.map(x=>_gram(_key(x)));
@@ -4213,14 +4218,14 @@ function styleLearn(){
       if(best<0.45||best>=0.97||o[bj]===t)return;v.pairs++;
       const ow=o[bj].split(/\s+/).map(clean),fw=t.split(/\s+/).map(clean);const os=new Set(ow),fs=new Set(fw);
       const d=ow.filter(w=>w&&!fs.has(w)),ad=fw.filter(w=>w&&!os.has(w));
-      d.forEach(w=>{if(ok(w))inc(del,w);});ad.forEach(w=>{if(ok(w))inc(add,w);});
+      d.forEach(w=>{if(okW(w))inc(del,w);});ad.forEach(w=>{if(okW(w))inc(add,w);});
       if(d.length===1&&ad.length===1&&ok(d[0])&&ok(ad[0]))inc(sw,d[0]+'→'+ad[0]);});
   }
   const r0=(sf+1)/(so+1);
   const ks=new Set([...Object.keys(eo),...Object.keys(ef)]);
   const er=[...ks].map(k=>[k,eo[k]||0,ef[k]||0]).filter(x=>x[1]+x[2]>=30).map(x=>[...x,((x[2]+5)/(x[1]+5))/r0]);
-  v.cutEnd=er.filter(x=>x[3]<=0.6).sort((a,b)=>a[3]-b[3]).slice(0,10).map(x=>x.slice(0,3));
-  v.addEnd=er.filter(x=>x[3]>=1.4&&x[2]>=15).sort((a,b)=>b[3]-a[3]).slice(0,10).map(x=>x.slice(0,3));
+  v.cutEnd=er.filter(x=>x[3]<=0.6).sort((a,b)=>a[3]-b[3]).slice(0,10).map(x=>[_styShow(x[0]),x[1],x[2]]);
+  v.addEnd=er.filter(x=>x[3]>=1.4&&x[2]>=15).sort((a,b)=>b[3]-a[3]).slice(0,10).map(x=>[_styShow(x[0]),x[1],x[2]]);
   v.swaps=Object.entries(sw).filter(x=>x[1]>=3).sort((a,b)=>b[1]-a[1]).slice(0,12);
   const wk=new Set([...Object.keys(del),...Object.keys(add)]);
   const wr=[...wk].map(k=>[k,del[k]||0,add[k]||0]);
@@ -4239,7 +4244,7 @@ function styleLearnBlock(L){
   if(L.cutEnd.length)L1.push("- 홍쌤이 줄이는 끝맺음 (AI 원본 → 승인본 횟수): "+L.cutEnd.map(x=>"~"+x[0]+"("+x[1]+"→"+x[2]+")").join(", ")+". 같은 끝맺음을 한 과목에서 두 번 넘게 쓰지 마세요.");
   if(L.addEnd.length)L1.push("- 홍쌤이 더 쓰는 끝맺음: "+L.addEnd.map(x=>"~"+x[0]+"("+x[1]+"→"+x[2]+")").join(", ")+". 해야 할 일은 돌려 말하지 말고 '~해야 해요/~하면 됩니다'처럼 분명하게 말하세요.");
   if(L.swaps.length)L1.push("- 홍쌤이 바꿔 쓴 말: "+L.swaps.map(x=>x[0].replace('→',' → ')+"("+x[1]+"회)").join(", "));
-  if(L.cutWords.length)L1.push("- 홍쌤이 자주 지운 말: "+L.cutWords.map(x=>x[0]+"("+x[1]+"회)").join(", "));
+  if(L.cutWords.length)L1.push("- AI가 너무 자주 넣어 홍쌤이 지운 말: "+L.cutWords.map(x=>x[0]+"("+x[1]+"회)").join(", "));
   if(L.addWords.length)L1.push("- 홍쌤이 자주 넣은 말: "+L.addWords.map(x=>x[0]+"("+x[2]+"회)").join(", "));
   const F=L.fmt;if(F){const fm=[];
     if(F.emoji[0]>=0.05)fm.push("이모지 "+f1(F.emoji[0])+"개 → "+f1(F.emoji[1])+"개");
