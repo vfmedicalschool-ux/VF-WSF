@@ -309,6 +309,88 @@ async function uploadProfiles(obj){
   STUDENT_PROFILE=obj;
 }
 
+// ── 학생별 TEST 점수 요약 (2026-10-27) ──
+// 학생관리팀 「점수요약_만들기.py」 결과(점수요약_업로드용.json)를 강사 화면에서 올린다.
+// 저장 위치는 강사 전용 reviews 컬렉션의 __scores__ 문서(reviews 규칙 = 강사만 읽기·쓰기, 운영 적용됨).
+// config 는 로그인한 학생도 읽을 수 있어 쓰지 않는다. 학생 화면·submissions 에는 넣지 않는다.
+let STUDENT_SCORES={}, SCORES_META=null;
+const SCORES_DOC='__scores__';
+async function loadScores(){
+  try{
+    const d=await fsdb.collection('reviews').doc(SCORES_DOC).get();
+    STUDENT_SCORES=d.exists?(d.data().scores||{}):{};
+    SCORES_META=d.exists?{generated_at:d.data().generated_at||'',sources:d.data().sources||[]}:null;
+  }catch(e){ STUDENT_SCORES={}; SCORES_META=null; console.warn('점수 로드 실패(reviews 권한 확인):',e.code||e.message); }
+}
+async function handleScoresFile(input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  try{
+    const j=JSON.parse(await f.text());
+    if(j.kind!=='vf-wsf-scores'||typeof j.scores!=='object')throw new Error('점수요약_만들기.py 로 만든 파일이 아닙니다');
+    const bad=[];
+    Object.entries(j.scores).forEach(([n,v])=>(v.tests||[]).forEach(t=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(t.date||''))bad.push(`${n} ${t.subject} 날짜`);
+      if(typeof t.score!=='number'||typeof t.q_count!=='number'||t.score<0||t.score>t.q_count)bad.push(`${n} ${t.subject} ${t.round} 점수`);
+    }));
+    if(bad.length)throw new Error('숫자 확인 필요 '+bad.length+'건: '+bad.slice(0,5).join(', '));
+    await fsdb.collection('reviews').doc(SCORES_DOC).set({scores:j.scores,generated_at:j.generated_at||'',sources:j.sources||[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    STUDENT_SCORES=j.scores; SCORES_META={generated_at:j.generated_at||'',sources:j.sources||[]};
+    const miss=(S.roster||[]).filter(n=>!j.scores[n]);
+    alert(`점수 업로드 완료\n학생 ${Object.keys(j.scores).length}명 · 회차 ${(j.sources||[]).length}개`+(miss.length?`\n점수 없는 명단 학생 ${miss.length}명: ${miss.slice(0,8).join(', ')}${miss.length>8?' …':''}`:''));
+  }catch(e){ alert('점수 업로드 실패: '+e.message); }
+  input.value=''; render();
+}
+const SCORE_SUBS=['생물','화학','유기','전과목'];
+const _sdw=s=>{const [y,m,d]=String(s).split('-').map(Number);const t=new Date(y,m-1,d);return `${m}/${d}(${'일월화수목금토'[t.getDay()]})`;};
+// 과목별 최근 3회(날짜순)
+function scoreRecent(name){
+  const v=STUDENT_SCORES&&STUDENT_SCORES[String(name||'').trim()]; if(!v)return null;
+  const out={};
+  (v.tests||[]).forEach(t=>{(out[t.subject]=out[t.subject]||[]).push(t);});
+  Object.keys(out).forEach(k=>{out[k]=out[k].sort((a,b)=>a.date<b.date?-1:1).slice(-3);});
+  return Object.keys(out).length?out:null;
+}
+const _sdiff=t=>typeof t.class_mean==='number'?Math.round((t.score-t.class_mean)*10)/10:null;
+const _sfmt=d=>d==null?'':(d>0?'+':d<0?'−':'±')+Math.abs(d);
+const _ssubs=R=>Object.keys(R).sort((a,b)=>(SCORE_SUBS.indexOf(a)+99)%99-(SCORE_SUBS.indexOf(b)+99)%99);
+function scoreBlockText(name){
+  if(S.useScores===false)return '';
+  const R=scoreRecent(name); if(!R)return '';
+  const lines=_ssubs(R).map(k=>`■ ${k}\n`+R[k].map(t=>{
+    const d=_sdiff(t);
+    const miss=(t.majority_correct_but_wrong||[]).length?` · 응시자 70% 이상이 맞혔는데 틀린 문항 ${t.majority_correct_but_wrong.length}개(${t.majority_correct_but_wrong.join(', ')}번)`:'';
+    return `- ${_sdw(t.date)} ${t.round}: ${t.score}/${t.q_count}`+(t.class_mean!=null?` · 반평균 ${t.class_mean} (${_sfmt(d)})`:'')+miss;
+  }).join('\n')).join('\n');
+  return `\n## [TEST 점수 기록 — 결과 통계 시트에서 자동 집계, 학생이 쓴 글 아님]\n`
+    +`아래 숫자는 시험 결과 시트에서 계산한 실제 기록입니다. **이 블록에 한해** 시험 이름·점수·반평균을 학생 원문에 없어도 인용할 수 있습니다.\n\n${lines}\n\n`
+    +`→ 쓰는 법\n`
+    +`- 숫자는 이 블록에 적힌 그대로만 씁니다. 평균·합계·증감을 새로 계산해 새 숫자를 만들지 마세요.\n`
+    +`- 시험은 날짜·회차 이름으로 부르세요. 피드백 주차와 시험 날짜가 맞는지 확실하지 않으면 "이번 주 시험"이라고 단정하지 마세요.\n`
+    +`- 학생이 이번 주 그 과목에 대해 쓴 내용과 이어질 때만, 해당 과목 섹션에 1~2문장으로 넣으세요. 모든 과목에 억지로 넣지 않습니다.\n`
+    +`- "응시자 다수가 맞혔는데 틀린 문항"이 있으면 "해설 보고 다시 풀어 보기" 정도까지만 권하세요.\n`
+    +`- 진도·교재·학습량을 바꾸라는 처방은 점수만으로 확정하지 마세요. "점수로 보면 ○○ 쪽 점검이 필요해 보여요" 수준으로 쓰고, 결정은 홍쌤이 합니다.\n`
+    +`- 등수나 반평균 아래라는 사실로 몰아세우지 마세요. 흐름(오르는지, 반평균과의 거리)을 사실대로 짚는 데만 씁니다.\n`;
+}
+function scoreCardHTML(name){
+  const R=scoreRecent(name);
+  const on=S.useScores!==false;
+  const head=`<div class="card-head" style="color:#1a5fb4;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>📊 최근 TEST 점수 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 결과 시트 자동 집계 · 학생에게 안 보임</span></span>`
+    +(R?`<label style="font-size:11px;font-weight:600;color:#3c3c43;cursor:pointer"><input type="checkbox" ${on?'checked':''} onchange="S.useScores=this.checked;render()"> 자동 생성에 넣기</label>`:'')+`</div>`;
+  if(!R)return `<div class="card" style="border-color:#d6e4f5;background:#f8fbff">${head}<div style="font-size:11.5px;color:#86868b">${Object.keys(STUDENT_SCORES||{}).length?'이 학생의 점수 기록이 없습니다(이름 표기 확인).':'점수 파일이 아직 없습니다 — 「📊 점수 JSON 업로드」에서 올리세요.'}</div></div>`;
+  const rows=_ssubs(R).map(k=>{
+    const ts=R[k], last=ts[ts.length-1], d=_sdiff(last);
+    const col=d==null?'#3c3c43':d>0?'#1a7a3a':d<0?'#c0392b':'#3c3c43';
+    const miss=(last.majority_correct_but_wrong||[]).length;
+    return `<tr><td style="padding:4px 6px;font-weight:700;white-space:nowrap">${esc(k)}</td><td style="padding:4px 6px;font-size:11px;color:#86868b">${esc(_sdw(last.date))} ${esc(last.round)}</td>`
+      +`<td style="padding:4px 6px;font-weight:700;white-space:nowrap">${last.score}<span style="color:#aeaeb2;font-weight:400">/${last.q_count}</span></td>`
+      +`<td style="padding:4px 6px;color:${col};font-weight:600">${last.class_mean!=null?`반평균 ${last.class_mean} (${_sfmt(d)})`:''}</td>`
+      +`<td style="padding:4px 6px;font-size:11px;color:#3c3c43">${ts.length>1?`최근 ${ts.length}회 ${ts.map(t=>t.score).join(' → ')}`:''}</td>`
+      +`<td style="padding:4px 6px;font-size:11px;color:${miss?'#c45400':'#aeaeb2'}">${miss?`다수 정답 문항 오답 ${miss}개`:''}${last.rank!=null&&last.n_takers?` · ${last.rank}/${last.n_takers}등`:''}</td></tr>`;
+  }).join('');
+  return `<div class="card" style="border-color:#b8d0f0;background:#f8fbff">${head}<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;width:100%">${rows}</table></div>`
+    +`<div style="font-size:10.5px;color:#aeaeb2;margin-top:5px">${on?'✅ 자동 생성 프롬프트에 [TEST 점수 기록] 블록으로 들어갑니다(인용 규칙 포함).':'⏸ 이번 생성에는 넣지 않습니다.'} 등수는 정답 수가 같으면 풀이 시간 순.${SCORES_META&&SCORES_META.generated_at?` · 집계 ${esc(SCORES_META.generated_at)}`:''}</div></div>`;
+}
+
 const ENN_DATA={
   "1w9":{r:"완벽+평화. 29%주의",c:"체력관리(운동/수면/식사) 적극. 채찍 금지—방향 명확히 제시가 핵심. 불편 과목 루틴 강제 배치+루틴 기능 여부 추적. 1w9는 혼자 해결하려는 경향이 강하니 홍쌤이 방향을 명확히 잡아줄 것. 꾸준함이 가장 큰 성과",a:"자책 유도. 채찍질로 동기부여. 불편 과목 회피 묵인"},
   "1w2":{r:"완벽+도움. 25%주의",c:"결과보다 과정을 훌륭하게. 판단 위임 질문에는 '네 생각은?' 먼저. 명상으로 불안 컨트롤. 피드백 실행 추적—1w2는 타인을 돕다가 자기 공부 시간이 줄어드는 경향 있음. 채찍 금지—방향 명확히",a:"식사/체력만 반복. 채찍질. 타인 도움 행동을 지나치게 격려"},
@@ -4034,6 +4116,7 @@ ${sepBlock}
 ${learnBlock}
 ${prevBlock}
 ${prev2Block}
+${scoreBlockText(name)}
 ${profBlock}${noProfBlock}
 ${nextBlock}
 ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
@@ -4130,7 +4213,7 @@ ${subjectBlock}
 
 [다음주 계획] ${nw?`생물: ${nw.생물_단원||"-"} / 화학: ${nw.화학_단원||"-"} / 유기: ${nw.유기_단원||"-"} / 다짐: ${nw.다짐||"-"}`:"(없음)"}
 </이번주_학생_원문>
-
+${scoreBlockText(name)?`\n(예외 하나: 위 [TEST 점수 기록] 블록의 시험 이름·점수·반평균은 원문에 없어도 그 블록에 적힌 그대로 인용할 수 있습니다. 그 밖의 숫자는 원문에 있는 것만.)\n`:''}
 ## ⛔ 위 원문에 없으면 쓰지 않습니다 ⛔
 
 **아래는 실제로 터진 사고입니다. 똑같이 반복하지 마세요.**
@@ -4562,6 +4645,9 @@ function buildInstructor(){
       <label class="btn-ghost btn-sm" style="cursor:pointer;white-space:nowrap">📁 JSON 업로드
         <input type="file" accept="application/json,.json" style="display:none" onchange="handleProfileFile(this)">
       </label>
+      <label class="btn-ghost btn-sm" style="cursor:pointer;white-space:nowrap" title="학생관리팀 점수요약_업로드용.json">📊 점수 JSON 업로드${Object.keys(STUDENT_SCORES||{}).length?` (${Object.keys(STUDENT_SCORES).length}명${SCORES_META&&SCORES_META.generated_at?' · '+esc(SCORES_META.generated_at):''})`:''}
+        <input type="file" accept="application/json,.json" style="display:none" onchange="handleScoresFile(this)">
+      </label>
     </div>
     <div style="font-size:11px;color:#86868b;margin-top:7px;line-height:1.6">개인정보(실명·GPA·토익·지원전략)라 소스에 넣지 않고 서버에 저장합니다. 강사 로그인 시에만 불러옵니다.<br><b style="color:#c45400">업로드용 JSON 파일은 절대 배포 폴더(Vercel)에 넣지 마세요.</b> 내 PC에만 보관하세요.</div>
     ${(()=>{const n=(S.allowedEmails||[]).length;
@@ -4629,7 +4715,7 @@ function buildInstructor(){
     const prevSection=prev?`<div class="prev-box"><div style="font-size:12px;font-weight:600;color:#a05f00;margin-bottom:10px">📎 저번주(${prev.month}월 ${prev.week}주차) 보완할점 → 이번주 개선 여부</div>${ALL_SUBS.map(s=>{const p=prev.subjects?.[s]?.improve,c=d.subjects?.[s];if(!p)return"";return`<div class="prev-row"><div style="font-size:11px;font-weight:600;color:#3a3a3c;margin-bottom:3px">${s}</div><div style="font-size:11px;color:#c0392b">저번주: ${esc(p)}</div>${c?.good?`<div style="font-size:11px;color:#1a7a3a;margin-top:2px">✅ 이번주 잘한점: ${esc(c.good)}</div>`:""}${c?.improve?`<div style="font-size:11px;color:#a05f00;margin-top:2px">🔧 이번주 보완점: ${esc(c.improve)}</div>`:""}</div>`}).join("")}</div>`:"";
     const subDetail=ALL_SUBS.map(s=>{const sd=d.subjects?.[s];if(!sd)return"";return`<div class="detail-sub ${SUB_CLASS[s]}"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${SUB_ICON[s]} ${s}</div>${sd.study?`<div style="font-size:11px;color:#6e6e73;margin-bottom:2px">📖 ${esc(sd.study)}</div>`:""}${sd.good?`<div style="font-size:11px;color:#1a7a3a;margin-bottom:2px">✅ ${esc(sd.good)}</div>`:""}${sd.improve?`<div style="font-size:11px;color:#c0392b">🔧 ${esc(sd.improve)}</div>`:""}</div>`}).join("");
     detailHTML=`<div>${prevSection}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">${esc(d.name)} — ${d.month}월 ${d.week}주차 제출 내용</div><button class="btn-ghost btn-sm" onclick="set({editMW:!S.editMW})">${S.editMW?"취소":"✏️ 월/주차 수정"}</button></div>${S.editMW?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:13px;background:#f5f5f7;border-radius:9px;padding:10px 12px"><span style="font-size:12px;color:#6e6e73;white-space:nowrap">월/주차 변경:</span><select id="edit-month" style="width:auto">${opt(["7","8","9","10","11","12","1"].map(m=>[m,m+"월"]),d.month)}</select><select id="edit-week" style="width:auto">${opt(["1","2","3","4"].map(w=>[w,w+"주"]),d.week)}</select><button class="btn-blue btn-sm" onclick="updateMW()" style="white-space:nowrap">저장</button></div>`:""}<div>${subDetail}${d.nw?.다짐?`<div style="background:#f0f4ff;border-radius:9px;padding:9px 12px;font-size:12px;color:#0059b3;margin-top:6px">✨ 다짐: ${esc(d.nw.다짐)}</div>`:""}</div>
-    ${(()=>{const nt=S.sel?.data?.teacherNote||"";const noteObj=parseNote(nt);return `<div class="card" style="border-color:#b8d8f0;background:#f7fbff"><div class="card-head" style="color:#0059b3">📝 생성 전 메모 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 학생 글 보고 짚을 것을 적어두면 자동생성에 최우선 반영됩니다</span></div><div style="font-size:11px;color:#86868b;margin-bottom:6px">과목별로 나눠 적으면 해당 섹션에 정확히 반영됩니다. 빈 칸은 무시됩니다.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">${[["생물","🧬"],["화학","⚗️"],["유기","🔬"],["생활관리","🌿"],["공통","📌"]].map(([k,ic])=>`<div${k==="공통"?" style=\"grid-column:1/-1\"":""}><span class="lbl">${ic} ${k}</span><textarea id="tnote-${k}" data-note="${k}" placeholder="${k==="공통"?"전 과목 공통으로 넣을 내용":"이 과목에서 짚을 것"}" style="min-height:52px;font-size:12px">${esc(noteObj[k]||"")}</textarea></div>`).join("")}</div><textarea id="tnote" style="display:none">${esc(nt)}</textarea><div style="display:flex;gap:6px;align-items:center;margin-top:7px"><button class="btn-blue btn-sm" onclick="saveTeacherNote()">메모 저장</button>${S.noteSaved?`<span style="font-size:11px;color:#1a7a3a;font-weight:600">저장됨 ✓</span>`:""}${nt?`<span style="font-size:11px;color:#0059b3;margin-left:auto">✅ 이 메모가 프롬프트 맨 앞에 들어갑니다</span>`:`<span style="font-size:11px;color:#aeaeb2;margin-left:auto">비워두면 평소대로 생성됩니다</span>`}</div></div><div class="card" style="border-color:#e0d4f0;background:#fbf9ff"><div class="card-head" style="color:#5b2ec4">🔍 예전에 쓴 문구 찾기 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 다른 학생에게 썼던 표현 재사용</span>${(S.phraseHits||[]).length?`<span style="float:right;font-size:11px;font-weight:700;color:#5b2ec4;background:#efe8ff;padding:1px 9px;border-radius:9px">${S.phraseHits.length}건</span>`:""}</div><div style="display:flex;gap:6px"><input id="phrase-q" value="${esc(S.phraseQ||"")}" placeholder="예: 근사 / 식곤증 / 취침 루틴 / 랜덤 test" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchPhrase()"><button class="btn-ghost btn-sm" onclick="searchPhrase()" style="white-space:nowrap">검색</button></div>${(S.phraseHits||[]).length?`<div style="margin-top:8px;max-height:260px;overflow-y:auto">`+(S.phraseHits||[]).map((x,i)=>`<div style="border-top:1px solid #eee;padding:7px 0"><div style="font-size:10px;color:#86868b;margin-bottom:2px">${esc(x.name)} · ${esc(x.mw)}${x.trait?` · ${esc(x.trait)}`:""} <button onclick="copyPhrase(${i})" style="border:none;background:#efe8ff;color:#5b2ec4;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;cursor:pointer;margin-left:4px">${S.phraseCopied===i?"복사됨 ✓":"복사"}</button></div><div style="font-size:11.5px;line-height:1.8;color:#3c3c43">${hlPhrase(x.text,S.phraseQ)}</div></div>`).join("")+`</div>`:(S.phraseQ&&S.phraseQ.length>=2?`<div style="font-size:11px;color:#aeaeb2;margin-top:7px">일치하는 문구가 없습니다.</div>`:"")}</div>`;})()}${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
+    ${S.sel?scoreCardHTML(S.sel.data.name):""}${(()=>{const nt=S.sel?.data?.teacherNote||"";const noteObj=parseNote(nt);return `<div class="card" style="border-color:#b8d8f0;background:#f7fbff"><div class="card-head" style="color:#0059b3">📝 생성 전 메모 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 학생 글 보고 짚을 것을 적어두면 자동생성에 최우선 반영됩니다</span></div><div style="font-size:11px;color:#86868b;margin-bottom:6px">과목별로 나눠 적으면 해당 섹션에 정확히 반영됩니다. 빈 칸은 무시됩니다.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">${[["생물","🧬"],["화학","⚗️"],["유기","🔬"],["생활관리","🌿"],["공통","📌"]].map(([k,ic])=>`<div${k==="공통"?" style=\"grid-column:1/-1\"":""}><span class="lbl">${ic} ${k}</span><textarea id="tnote-${k}" data-note="${k}" placeholder="${k==="공통"?"전 과목 공통으로 넣을 내용":"이 과목에서 짚을 것"}" style="min-height:52px;font-size:12px">${esc(noteObj[k]||"")}</textarea></div>`).join("")}</div><textarea id="tnote" style="display:none">${esc(nt)}</textarea><div style="display:flex;gap:6px;align-items:center;margin-top:7px"><button class="btn-blue btn-sm" onclick="saveTeacherNote()">메모 저장</button>${S.noteSaved?`<span style="font-size:11px;color:#1a7a3a;font-weight:600">저장됨 ✓</span>`:""}${nt?`<span style="font-size:11px;color:#0059b3;margin-left:auto">✅ 이 메모가 프롬프트 맨 앞에 들어갑니다</span>`:`<span style="font-size:11px;color:#aeaeb2;margin-left:auto">비워두면 평소대로 생성됩니다</span>`}</div></div><div class="card" style="border-color:#e0d4f0;background:#fbf9ff"><div class="card-head" style="color:#5b2ec4">🔍 예전에 쓴 문구 찾기 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 다른 학생에게 썼던 표현 재사용</span>${(S.phraseHits||[]).length?`<span style="float:right;font-size:11px;font-weight:700;color:#5b2ec4;background:#efe8ff;padding:1px 9px;border-radius:9px">${S.phraseHits.length}건</span>`:""}</div><div style="display:flex;gap:6px"><input id="phrase-q" value="${esc(S.phraseQ||"")}" placeholder="예: 근사 / 식곤증 / 취침 루틴 / 랜덤 test" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchPhrase()"><button class="btn-ghost btn-sm" onclick="searchPhrase()" style="white-space:nowrap">검색</button></div>${(S.phraseHits||[]).length?`<div style="margin-top:8px;max-height:260px;overflow-y:auto">`+(S.phraseHits||[]).map((x,i)=>`<div style="border-top:1px solid #eee;padding:7px 0"><div style="font-size:10px;color:#86868b;margin-bottom:2px">${esc(x.name)} · ${esc(x.mw)}${x.trait?` · ${esc(x.trait)}`:""} <button onclick="copyPhrase(${i})" style="border:none;background:#efe8ff;color:#5b2ec4;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;cursor:pointer;margin-left:4px">${S.phraseCopied===i?"복사됨 ✓":"복사"}</button></div><div style="font-size:11.5px;line-height:1.8;color:#3c3c43">${hlPhrase(x.text,S.phraseQ)}</div></div>`).join("")+`</div>`:(S.phraseQ&&S.phraseQ.length>=2?`<div style="font-size:11px;color:#aeaeb2;margin-top:7px">일치하는 문구가 없습니다.</div>`:"")}</div>`;})()}${(()=>{const W=trustWarnings(S.sel);return W.length?`<div class="card" style="border-color:#f0c36d;background:#fffdf5"><div class="card-head" style="color:#c45400;margin-bottom:8px">⚠️ 생성 전 확인 (${W.length}건)</div>${W.map(([t,d])=>`<div style="font-size:11px;line-height:1.7;margin-bottom:4px"><b style="color:#c45400">${esc(t)}</b> <span style="color:#86868b">— ${esc(d)}</span></div>`).join("")}</div>`:"";})()}<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px"><div class="card-head" style="margin-bottom:0">💬 자동 생성 피드백</div><div style="display:flex;gap:6px"><button class="btn-ghost btn-sm" onclick="previewPrompt()">프롬프트 보기</button><button class="btn-blue${S.generating?" disabled":""}" onclick="generateFeedback()" ${S.generating?"disabled":""}>${S.generating?"생성 중...":S.generated?"🔄 재생성":"🤖 피드백 생성"}</button></div></div>
     ${S.showPrompt?`<div class="prompt-box"><div style="display:flex;justify-content:space-between;margin-bottom:7px"><strong style="font-size:12px">Claude에게 전달되는 프롬프트</strong><button onclick="set({showPrompt:false})" style="background:none;border:none;color:#aeaeb2;cursor:pointer;font-size:18px;line-height:1">×</button></div>${esc(S.promptText)}</div>`:""}
     ${S.generating?`<div style="text-align:center;padding:44px 20px;color:#86868b;font-size:13px">🤖 강사님 스타일로 피드백 생성 중...</div>`:""}
     ${!S.generating&&S.generated?`${(()=>{const H=hallucinationCheck(S.sel?.data||{}),Q=quoteWarnings(S.sel?.data||{});if(!H.length&&!Q.length)return'';const SRC={prof:'사전상담 프로필에만 있음',prev:'지난 주 기록에만 있음',none:'어디에도 근거 없음'};
@@ -4935,6 +5021,7 @@ auth.onAuthStateChanged(async user=>{
     await loadEnneagram();   // 원래 설계: 등록 학생도 갤러리에서 유형 표시 (규칙상 등록 학생·강사만 읽힘)
     if(sameEmail(user.email,TEACHER_EMAIL)){
       await loadProfiles();
+      await loadScores();
       S.allowedEmails=await syncAllowedEmails();   // 명단 자동 동기화
       try{ window._wsfSync=await syncWsfAllowed(); console.log('wsfAllowed 동기화', window._wsfSync); }catch(e){ console.warn('wsfAllowed 동기화 실패:',e.code||e.message); }
     }else STUDENT_PROFILE={};
