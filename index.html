@@ -4098,10 +4098,10 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
   · 생물 분석 순서 — 화학과 같은 깊이로 쓰되 학습법은 생물에 맞추세요. 분석 블록이 있으면 모의고사 분석 부분을 아래 순서로 쓰세요. 생물 TEST는 회차마다 출제 학교와 문항 수가 달라 같은 번호가 같은 단원이 아닙니다. 번호끼리 비교하지 말고 정답률로 비교하세요.
     ① 결론 먼저: "일단 오늘 모의고사를 홍쌤이 분석해보면"으로 시작해 이번 점수와 정답률 추이를 말하고, 개념이 비어 있는 건지 시간 운영이나 실수 문제인지 판단하세요. 판단 근거는 직접 고른 답의 정답률과 앞뒤 절반 정답입니다.
     ② 잘 푼 것: 반 정답률 60% 미만인데 맞힌 문항을 먼저 짚으세요. 학생 기록에 지난주 약점이나 지시가 있으면 "지난주에 짚은 ~가 이번에 달라졌어요"처럼 연결하세요.
-    ③ 점수가 빠진 곳: 앞뒤 절반 정답으로 뒤쪽에서 무너졌는지 보고, 같은 번호가 이어진 구간은 "(아마 찍은 거 같아요)"처럼 추정으로 쓰세요. 단원명은 학생이 직접 쓴 약점 단원일 때만 쓰세요.
+    ③ 점수가 빠진 곳: 앞뒤 절반 정답으로 뒤쪽에서 무너졌는지 보고, 같은 번호가 이어진 구간은 "(아마 찍은 거 같아요)"처럼 추정으로 쓰세요. 단원과 주제는 분석 블록에 있는 값만 쓰고, 블록에 없으면 학생이 직접 쓴 약점 단원만 쓰세요.
     ④ 쉬운 문제: 번호와 반 정답률을 쓰고, 학생이 쓴 내용이 있으면 "문제를 대충 읽었는지, 쉬워 보여서 빨리 넘어갔는지"로 원인을 연결하세요. 쉬운 문제 실수 개수가 줄고 있으면 칭찬하세요.
     ⑤ 오답 처리: 틀린 선지를 그냥 넘기지 말고 왜 틀렸는지 기본서(캠벨, 써머리)에서 찾아 확인하게 하세요. 왜 그렇게 생각했는지 사고 과정까지 남기게 하세요.
-    ⑥ 이번 주 할 일: 학생이 쓴 약점 단원을 한두 개로 좁혀 "기본서로 흐름 잡기 → MDP·기출로 문제 적용 → 써머리에 모으기" 순서로 지시하세요. 시험 운영은 "선지 보고 30초 안에 판단이 안 서면 표시하고 넘어가기"처럼 규칙을 주세요. 옳은 것의 개수·틀린 것의 개수 유형에서 막혔다고 쓴 학생에게는 정답률이 낮은 유형이니 시험에서는 맞출 수 있는 문제부터 풀고, 리뷰만 꼼꼼히 하라고 말해 주세요.
+    ⑥ 이번 주 할 일: 반복 오답 단원과 틀린 문항 주제, 학생이 쓴 약점 단원을 묶어 한두 개로 좁혀 "기본서로 흐름 잡기 → MDP·기출로 문제 적용 → 써머리에 모으기" 순서로 지시하세요. 시험 운영은 "선지 보고 30초 안에 판단이 안 서면 표시하고 넘어가기"처럼 규칙을 주세요. 옳은 것의 개수·틀린 것의 개수 유형에서 막혔다고 쓴 학생에게는 정답률이 낮은 유형이니 시험에서는 맞출 수 있는 문제부터 풀고, 리뷰만 꼼꼼히 하라고 말해 주세요.
     ⑦ 목표선: 무엇을 고치면 몇 개가 되는지 쓰세요. 정답률 90% 이상이면 생략하세요.
   · 생물(개념·암기 과목): 어려운 문항 오답은 번호를 묶어 "틀린 건 큰 문제 아닙니다. 해설 보면서 개념 위주로 챙기면 됩니다"처럼 한 문장으로 끝내세요. 방향은 통합이론 복습, 실험 내용 숙지, 기출·적중 문제 복습과 암기로 잡으세요.
   · 화학 분석 순서 — 화학은 가장 자세히 씁니다. 분석 블록이 있으면 모의고사 분석 부분을 아래 순서로 쓰세요.
@@ -4336,7 +4336,7 @@ const MT_SUBS=['생물','화학','유기'];
 const MT_KINDS=[['auto','자동 판단'],['생물','생물 결과'],['화학','화학 결과'],['유기','유기 결과'],['전과목','전과목 결과'],['상담','상담 자료']];
 const MT_MAX_TEXT=30000;                      // 상담 파일 하나당 요약에 보내는 최대 글자 수
 const MT_MAX_NOTE=6000;                       // 프롬프트에 넣는 총평 최대 글자 수
-const MT={dirs:[],tests:[],consults:{},sections:{},units:{},reuse:{},notes:{},exRanks:{},issues:[],scanning:false,scannedAt:0,needPerm:false,sum:{},sigs:{},busy:{}};
+const MT={dirs:[],tests:[],consults:{},sections:{},units:{},topics:{},reuse:{},notes:{},exRanks:{},issues:[],scanning:false,scannedAt:0,needPerm:false,sum:{},sigs:{},busy:{}};
 
 // ── 폴더 핸들 저장 (IndexedDB, 이 브라우저에만) ──
 function mtDB(){return new Promise((res,rej)=>{const q=indexedDB.open('vf-wsf-mat',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
@@ -4456,6 +4456,38 @@ async function mtEnsureXLSX(){
   if(window.XLSX)return;
   await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=()=>rej(new Error('엑셀 읽기 도구를 불러오지 못했습니다'));document.head.appendChild(s);});
 }
+async function mtEnsurePDF(){
+  if(window.pdfjsLib)return;
+  const V='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  await new Promise((res,rej)=>{const s=document.createElement('script');s.src=V+'pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('PDF 읽기 도구를 불러오지 못했습니다'));document.head.appendChild(s);});
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc=V+'pdf.worker.min.js';
+}
+// 생물 해설지의 문항 분석표: 「문항 번호 / 단원 / 주제」 줄 → {번호:{unit,topic}}
+function mtParseExplain(lines){
+  const out={};let cur=0;
+  lines.forEach(l=>{
+    let m=l.match(/^문항 ?번호\s*(\d+)/);
+    if(m){cur=+m[1];return;}
+    if(!cur)return;
+    m=l.match(/^단원\s+(?:\d{1,2}\s+)?(.+)$/);
+    if(m&&!out[cur]){out[cur]={unit:m[1].replace(/^생체 분자$/,'생체분자').replace(/([A-Za-z]) (?=[의와] )/g,'$1'),topic:''};return;}
+    m=l.match(/^주제\s+(.+)$/);
+    if(m&&out[cur]&&!out[cur].topic)out[cur].topic=m[1];
+  });
+  return out;
+}
+// PDF 글자 조각을 화면 높이가 같은 것끼리 묶어 줄로 만든다
+function mtPageLines(items){
+  const rows={};
+  items.forEach(i=>{if(!i.str.trim())return;const y=Math.round(i.transform[5]/2)*2;(rows[y]=rows[y]||[]).push(i);});
+  return Object.keys(rows).map(Number).sort((a,b)=>b-a).map(y=>rows[y].sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str).join(' ').replace(/\s+/g,' ').replace(/\s+,/g,',').trim());
+}
+async function mtReadExplain(buf){
+  await mtEnsurePDF();
+  const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise,lines=[];
+  for(let p=1;p<=doc.numPages;p++)lines.push(...mtPageLines((await (await doc.getPage(p)).getTextContent()).items));
+  return mtParseExplain(lines);
+}
 // 전과목 구간: {"2026-11-01":{"생물":"1-30","화학":"31-40,45-57","유기":"41-44,58-60"}}
 function mtRanges(s){
   const out=[];String(s).split(',').forEach(p=>{const m=p.trim().match(/^(\d+)(?:-(\d+))?$/);if(!m)throw new Error('구간 형식 오류: '+p);for(let i=+m[1];i<=+(m[2]||m[1]);i++)out.push(i);});
@@ -4537,20 +4569,22 @@ async function mtWalk(dir,path,out,depth,inAI){
     const ai=inAI||/AI작업/.test(name);
     if(h.kind==='directory')await mtWalk(h,p,out,depth+1,ai);
     else if(ai){if(/총평.*\.txt$/i.test(name))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평만 읽는다
-    else if(/\.(xlsx|txt)$/i.test(name)||name==='전과목_과목구간.json'||name==='문항단원.json')out.push({name,path:p,handle:h});
+    else if(/\.(xlsx|txt)$/i.test(name)||name==='전과목_과목구간.json'||name==='문항단원.json'||(/해설/.test(name)&&/\.pdf$/i.test(name)))out.push({name,path:p,handle:h});
   }
 }
 async function mtScan(){
   if(MT.scanning)return;
   MT.scanning=true;MT.issues=[];render();
-  const tests={},consults={},reuse={},notes={},exRanks={};let sections={},units={};
+  const tests={},consults={},reuse={},notes={},exRanks={},topics={},pdfs={};let sections={},units={};
   try{
     await mtEnsureXLSX();
     for(const d of MT.dirs){
       const files=[];
       try{await mtWalk(d.handle,d.handle.name,files,0);}catch(e){MT.issues.push(`${d.handle.name}: 읽기 실패 (${e.message})`);continue;}
       for(const f of files){
-        if(f.name==='전과목_과목구간.json'){
+        if(/\.pdf$/i.test(f.name)){
+          const dir=f.path.slice(0,f.path.lastIndexOf('/'));if(!pdfs[dir])pdfs[dir]=f;
+        }else if(f.name==='전과목_과목구간.json'){
           try{sections={...sections,...mtParseSections(JSON.parse(await (await f.handle.getFile()).text()))};}catch(e){MT.issues.push(`전과목_과목구간.json: ${e.message} — 전과목은 총점만 씁니다`);}
         }else if(f.name==='문항단원.json'){
           try{units={...units,...JSON.parse(await (await f.handle.getFile()).text())};}catch(e){MT.issues.push(`문항단원.json: ${e.message}`);}
@@ -4593,14 +4627,23 @@ async function mtScan(){
           try{
             const parsed=mtParseBuffer(await (await f.handle.getFile()).arrayBuffer());
             if(prev&&!fixed&&!prev.fixed)MT.issues.push(`같은 날짜 결과가 2개: ${prev.fname} / ${f.name}`);
-            tests[id]={...parsed,subject,date,title:mtTitle(f.path),fname:f.name,fixed};
+            tests[id]={...parsed,subject,date,title:mtTitle(f.path),fname:f.name,fixed,dir:f.path.slice(0,f.path.lastIndexOf('/'))};
           }catch(e){MT.issues.push(`${f.name}: ${e.message}`);}
         }
       }
     }
+    for(const t of Object.values(tests)){   // 결과 파일과 같은 폴더의 생물 해설지에서 단원·주제를 읽는다
+      const pf=(t.subject==='생물'||t.subject==='전과목')&&pdfs[t.dir];
+      if(!pf)continue;
+      try{
+        const ex=await mtReadExplain(await (await pf.handle.getFile()).arrayBuffer()),key=t.date+'/'+t.subject,u={},tp={};
+        Object.entries(ex).forEach(([q,x])=>{u[q]=x.unit;tp[q]=x.topic;});
+        units[key]={...u,...(units[key]||{})};topics[key]=tp;
+      }catch(e){MT.issues.push(`${pf.name}: ${e.message} — 단원 없이 씁니다`);}
+    }
     MT.tests=Object.values(tests).sort((a,b)=>a.date.localeCompare(b.date));
     Object.values(consults).forEach(a=>a.sort((x,y)=>y.date.localeCompare(x.date)));
-    MT.consults=consults;MT.sections=sections;MT.units=units;MT.reuse=reuse;MT.notes=notes;MT.exRanks=exRanks;MT.scannedAt=Date.now();MT.sum={};MT.sigs={};
+    MT.consults=consults;MT.sections=sections;MT.units=units;MT.topics=topics;MT.reuse=reuse;MT.notes=notes;MT.exRanks=exRanks;MT.scannedAt=Date.now();MT.sum={};MT.sigs={};
   }catch(e){MT.issues.push(e.message);}
   MT.scanning=false;render();
 }
@@ -4654,7 +4697,7 @@ function mtEntry(test,row,qs,label,useSheetRank){
   const cluster=(useSheetRank&&top&&top[1]>=3&&top[1]/backWrong.length>=0.6)?{opt:top[0],count:top[1],total:backWrong.length,from:back[0]}:null;
   const rank=(useSheetRank&&row.rank!=null)?row.rank:1+st.scores.filter(x=>x>score).length;
   return {date:test.date,label,subject:test.subject,score,total:qs.length,mean:st.mean,rank,n:st.n,wrong,blank,right,runs,easy,hardWrong,hardRight,traps,cluster,rate:st.rate,
-    answeredRate:mtPct(score,qs.length-blank.length),units:(MT.units||{})[test.date+'/'+test.subject]||null};
+    answeredRate:mtPct(score,qs.length-blank.length),units:(MT.units||{})[test.date+'/'+test.subject]||null,topics:(MT.topics||{})[test.date+'/'+test.subject]||null};
 }
 function mtWeekEnd(t){   // 제출일이 속한 주의 일요일까지(일요일 시험은 그 주차에 포함)
   const d=(t&&toDate(t))||new Date();
@@ -4724,6 +4767,7 @@ function mtBioLines(arr,last){
   if(last.runs&&last.runs.length)L.push(`- 같은 번호가 이어진 구간: ${last.runs.map(r=>`${r.qs.join('·')}번(${r.opt}번)`).join(', ')} → 직접 풀지 못하고 찍었을 가능성, 단정 금지`);
   const hard=last.right.filter(q=>last.rate[q]<60);
   if(hard.length)L.push(`- 반 정답률 60% 미만인데 맞힌 문항: ${mtQList(hard,last.rate,last.units)}`);
+  if(last.topics){const tw=last.wrong.filter(q=>last.topics[q]);if(tw.length)L.push(`- 틀린 문항 주제: ${tw.slice(0,15).map(q=>`${q}번 ${last.topics[q]}`).join(', ')}`);}
   if(arr.length>=2){
     L.push(`- 정답률 추이: ${arr.slice(-4).map(e=>Math.round(e.score/e.total*100)+'%').join(' → ')}`);
     L.push(`- 쉬운 문제 실수 개수 추이: ${arr.slice(-4).map(e=>e.easy.length).join(' → ')}`);
@@ -4750,7 +4794,7 @@ function mtSubjectLines(sub,arr,recap){
   if(last.cluster)L.push(`- 뒤쪽 문항 번호 몰림: ${last.cluster.from}번 이후 오답 ${last.cluster.total}개 중 ${last.cluster.count}개가 ${last.cluster.opt}번 선지 → 시간 부족 추정`);
   if(last.blank.length)L.push(`- 미응답: ${mtQList(last.blank)}`);
   const u={};arr.forEach(e=>{if(e.units)new Set(e.wrong.map(q=>e.units[q]).filter(Boolean)).forEach(x=>u[x]=(u[x]||0)+1);});
-  const rep=Object.entries(u).filter(x=>x[1]>=2).sort((a,b)=>b[1]-a[1]);
+  const rep=Object.entries(u).filter(x=>x[1]>=2).sort((a,b)=>b[1]-a[1]).slice(0,6);
   if(rep.length)L.push(`- 반복 오답 단원: ${rep.map(([k,v])=>`${k}(${v}회)`).join(', ')}`);
   return L;
 }
