@@ -4484,9 +4484,13 @@ function mtPageLines(items){
 }
 async function mtReadExplain(buf){
   await mtEnsurePDF();
-  const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise,lines=[];
-  for(let p=1;p<=doc.numPages;p++)lines.push(...mtPageLines((await (await doc.getPage(p)).getTextContent()).items));
-  return mtParseExplain(lines);
+  const read=(async()=>{
+    const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise,lines=[];
+    for(let p=1;p<=doc.numPages;p++)lines.push(...mtPageLines((await (await doc.getPage(p)).getTextContent()).items));
+    return lines;
+  })();
+  const late=new Promise((_,rej)=>setTimeout(()=>rej(new Error('해설지 읽기 시간 초과')),60000));
+  return mtParseExplain(await Promise.race([read,late]));
 }
 // 전과목 구간: {"2026-11-01":{"생물":"1-30","화학":"31-40,45-57","유기":"41-44,58-60"}}
 function mtRanges(s){
@@ -4879,6 +4883,11 @@ function mtLoadCached(item){
 
 // ── 화면 ──
 function mtNotConnected(){return !MT.dirs.length||MT.needPerm||!MT.scannedAt;}
+// 연결해 둔 자료를 아직 못 읽었으면 초안을 만들지 않는다. 폴더를 연결한 적이 없을 때만 기존 방식으로 생성한다
+async function mtReady(){
+  while(MT.scanning)await new Promise(r=>setTimeout(r,300));
+  if(MT.dirs.length&&mtNotConnected())throw new Error('TEST·상담 자료를 읽지 못해 생성을 멈췄습니다. 자료 폴더를 「다시 연결」한 뒤 생성해 주세요.');
+}
 function mtFolderCard(){
   const list=MT.dirs.map((d,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px"><span style="flex:1;min-width:0;word-break:break-all">📁 ${esc(d.handle.name)}</span><select onchange="mtSetKind(${i},this.value)" style="font-size:12px;width:auto;flex:none;padding:4px 6px">${MT_KINDS.map(([v,l])=>`<option value="${v}"${d.kind===v?' selected':''}>${l}</option>`).join('')}</select><button class="btn-ghost btn-sm" style="flex:none;white-space:nowrap" onclick="mtRemoveDir(${i})">빼기</button></div>`).join('');
   const nCons=Object.keys(MT.consults).length;
@@ -4892,7 +4901,7 @@ function mtFolderCard(){
 }
 function mtEvidenceCard(item){
   if(!item)return '';
-  if(mtNotConnected())return `<div class="card" style="border-color:#f0d68a;background:#fffbef"><div style="font-size:12px;color:#7a5b00">⚠️ TEST·상담 자료 미연결 — 분석 없이 기존 방식으로 생성됩니다. <button class="btn-ghost btn-sm" onclick="${MT.needPerm?'mtReconnect()':'mtConnect()'}">${MT.needPerm?'다시 연결':'폴더 연결'}</button></div></div>`;
+  if(mtNotConnected())return `<div class="card" style="border-color:#f0d68a;background:#fffbef"><div style="font-size:12px;color:#7a5b00">⚠️ TEST·상담 자료 미연결 — ${MT.dirs.length?'다시 연결해야 생성할 수 있습니다':'분석 없이 기존 방식으로 생성됩니다'}. <button class="btn-ghost btn-sm" onclick="${MT.needPerm?'mtReconnect()':'mtConnect()'}">${MT.needPerm?'다시 연결':'폴더 연결'}</button></div></div>`;
   const d=item.data;
   const {holds}=mtAnalyze(d.name,d.submittedAt);
   const t=mtSummaryText(d.name,d.submittedAt),c=MT.sum[item.key],files=mtConsultFiles(d.name,d.submittedAt),note=mtClassNote(d.name,d.submittedAt);
@@ -5464,6 +5473,7 @@ async function generateFeedback(){
       try{ await saveNotePrivate(S.sel.key,S.sel.data,liveNote); }catch(e){}
       S.sel={...S.sel,data:{...S.sel.data,teacherNote:liveNote}};
     }
+    await mtReady();
     try{await mtEnsureConsult(S.sel.key,S.sel.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
     const result=await callClaude(buildPrompt({...S.sel.data,trait,school,prevRecord:S.prevData,prevRecord2:S.prevData2,teacherNote:liveNote}),S.apiKey);
     // 최초 생성 시에만 AI 원본 + 생성시각 저장 (재생성해도 덮어쓰지 않음)
@@ -6477,6 +6487,7 @@ async function rvGenOne(key){
   const sig=rvStudentSig(item.data);
   const info=S.studentInfo[item.data.name]||{};
   const pl=await loadPrevList(item.data.name,item.data.month,item.data.week);
+  await mtReady();
   try{await mtEnsureConsult(key,item.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
   const note=[item.data.teacherNote,rvExtraInstruction(key,rvFreshPrep(key))].filter(x=>String(x||'').trim()).join('\n\n');
   const dataSig=mtDataSig(item.data);
@@ -6573,7 +6584,8 @@ async function rvDraft(){
     const p1=(R.key===key)?S.prevData:null,p2=(R.key===key)?S.prevData2:null;
     let prev1=p1,prev2=p2;
     if(R.key!==key){const pl=await loadPrevList(item.data.name,item.data.month,item.data.week);prev1=pl[0]||null;prev2=pl[1]||null;}
-    try{await mtEnsureConsult(key,item.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
+    await mtReady();
+  try{await mtEnsureConsult(key,item.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
     const dataSig=mtDataSig(item.data);
     const raw=await rvCallAI(buildPrompt({...item.data,trait:info.trait||'',school:info.school||'',prevRecord:prev1,prevRecord2:prev2,teacherNote:note}),6000,150000);
     const {body,decisions}=rvSplitDecision(raw);
