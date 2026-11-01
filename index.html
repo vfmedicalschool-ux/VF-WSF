@@ -3497,8 +3497,8 @@ ${KR_NATURAL_RULES}
 ${styleLearnBlock(styleLearn())}
 ### ★★ 홍쌤 실제 어휘 사전 (피드백 118건에서 추출 — 이 단어들을 쓰세요) ★★
 
-**칭찬은 아끼지 말고 적극적으로.** 잘한 건 확실하게 칭찬해야 학생이 다음주에도 그 행동을 이어갑니다. 아래는 홍쌤이 실제로 쓴 빈도입니다.
-- "정말 잘했어요!" (302회) — 가장 많이 쓰는 기본 칭찬. 아낌없이 사용
+**칭찬은 짧고 구체적으로.** 학생이 한 행동을 붙여 한 문장이면 충분합니다. 아래는 홍쌤이 실제로 쓴 빈도입니다.
+- "정말 잘했어요!" (302회) — 가장 많이 쓰는 기본 칭찬
 - "정말 좋습니다 / 정말 좋아요" (149회), "훌륭합니다" (151회), "정말 훌륭합니다" (142회)
 - "굿!" (138회), "굿굿!" (79회) — 짧게 끊어 칭찬할 때
 - "정말 잘하고 있어요" (80회), "칭찬해요 / 칭찬합니다" (56회)
@@ -4081,9 +4081,10 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
 
 ### [0] 과목별 피드백 구조 (생물·화학·유기 공통 — 가장 먼저 적용)
 피드백의 중심은 학생 칭찬이 아니라 TEST·모의고사 분석입니다. 각 과목을 이 순서로, 과목당 한 문단으로 쓰세요.
-1. 잘한 점 1~2문장: 학생이 이번 주 실제로 한 행동만 짧게. 학생이 쓴 내용을 되풀이하지 마세요.
+🚨 **칭찬 상한: 과목마다 잘한 점은 1문장, 꼭 필요할 때만 2문장입니다. 이 상한은 이 프롬프트의 다른 어떤 칭찬 지침보다 우선합니다.** 칭찬을 늘려 분량을 채우지 마세요.
+1. 잘한 점 1문장: 학생이 이번 주 실제로 한 행동만 짧게. 학생이 쓴 내용을 되풀이하지 마세요.
 2. 질문 답: 학생 질문은 하나도 빠짐없이 답하고, 바로 구체적으로 지시하세요. 걱정은 짧게 풀어 주세요.
-3. 분석: "TEST·모의고사 분석 요약" 블록에 그 과목이 있으면 "홍쌤이 이번 TEST·모의고사를 분석해보면"으로 시작해 점수 추이, 쉬운 문제 실수, 번호 몰림, 미응답을 짚으세요.
+3. 분석: "TEST·모의고사 분석 요약" 블록에 그 과목이 있으면 "홍쌤이 이번 TEST·모의고사를 분석해보면"으로 시작해 점수 추이, 쉬운 문제 실수, 번호 몰림, 미응답을 짚으세요. 「월 종합」 줄이 있으면 지난달 전체 흐름을 먼저 쓰고 이번 시험으로 넘어가세요.
 4. 원인: 분석에서 나온 실점 원인을 짚으세요. 실력 하락인지는 직접 고른 답의 정답률로 판단하세요.
 5. 이번 주 할 일: 번호·분량까지 구체적으로. 보충세트 번호·교재 쪽수는 학생 제출이나 선생님 메모에 있을 때만 쓰고, 없으면 "보충 세트에서 해당 단원"처럼 일반화하세요.
 6. 회복 목표선: 다음 시험에서 돌아갈 점수를 분석 블록의 숫자에 근거해 한 문장으로.
@@ -4640,10 +4641,33 @@ function mtAnalyze(name,submittedAt){
 }
 function mtMD(d){const p=d.split('-');return `${+p[1]}/${+p[2]}`;}
 function mtQList(list,rate,units){return list.map(q=>{const x=[rate?rate[q]+'%':'',units&&units[q]?units[q]:''].filter(Boolean).join(', ');return x?`${q}번(${x})`:`${q}번`;}).join(', ');}
-function mtSubjectLines(sub,arr){
+function mtRecapMonth(cut){   // 달이 바뀐 뒤 2주 동안은 지난달 종합을 함께 넣는다
+  const [y,m,d]=cut.split('-').map(Number);
+  if(d>14)return null;
+  return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,'0')}`;
+}
+function mtPctOf(list){const t=list.reduce((a,e)=>a+e.total,0);return t?Math.round(list.reduce((a,e)=>a+e.score,0)/t*1000)/10:0;}
+function mtMonthLine(arr,ym){
+  const list=arr.filter(e=>e.date.slice(0,7)===ym);
+  if(!list.length)return '';
+  const classPct=Math.round(list.reduce((a,e)=>a+e.mean,0)/list.reduce((a,e)=>a+e.total,0)*1000)/10;
+  const x=[`정답률 ${mtPctOf(list)}%(반 평균 ${classPct}%)`];
+  if(list.length>=4){const h=Math.floor(list.length/2);x.push(`전반 ${mtPctOf(list.slice(0,h))}% → 후반 ${mtPctOf(list.slice(h))}%`);}
+  if(list.length>=2){
+    const by=[...list].sort((a,b)=>b.score/b.total-a.score/a.total),hi=by[0],lo=by[by.length-1];
+    x.push(`최고 ${mtMD(hi.date)} ${hi.score}/${hi.total}, 최저 ${mtMD(lo.date)} ${lo.score}/${lo.total}`);
+  }
+  x.push(`쉬운 문제 실수 ${list.reduce((a,e)=>a+e.easy.length,0)}개`,`미응답 ${list.reduce((a,e)=>a+e.blank.length,0)}개`,`번호 몰림 ${list.filter(e=>e.cluster).length}회`);
+  const after=arr.filter(e=>e.date.slice(0,7)>ym);
+  if(after.length)x.push(`이후 시험 정답률 ${mtPctOf(after)}%`);
+  return `- ${+ym.slice(5)}월 종합(시험 ${list.length}회): ${x.join(', ')}`;
+}
+function mtSubjectLines(sub,arr,recap){
   if(!arr.length)return [];
   const last=arr[arr.length-1];
   const L=[`■ ${sub}`];
+  const ml=recap?mtMonthLine(arr,recap):'';
+  if(ml)L.push(ml);
   L.push(`- 점수 추이: ${arr.map(e=>`${mtMD(e.date)} ${e.score}/${e.total}`).join(' → ')}`);
   L.push(`- 최근 시험(${mtMD(last.date)} ${last.label}): ${last.score}/${last.total}, 반 평균 ${last.mean}, ${last.rank}등/${last.n}명, 직접 고른 답의 정답률 ${last.answeredRate}%`);
   if(last.wrong.length)L.push(`- 틀린 문항(반 정답률): ${mtQList(last.wrong.slice(0,15),last.rate,last.units)}${last.wrong.length>15?` 외 ${last.wrong.length-15}개`:''}`);
@@ -4664,7 +4688,8 @@ function mtSummaryText(name,submittedAt){
   if(!MT.tests.length)return '';
   const {out}=mtAnalyze(name,submittedAt);
   const L=[];
-  MT_SUBS.forEach(s=>L.push(...mtSubjectLines(s,out[s])));
+  const recap=mtRecapMonth(mtWeekEnd(submittedAt));
+  MT_SUBS.forEach(s=>L.push(...mtSubjectLines(s,out[s],recap)));
   if(out.전과목.length)L.push('■ 전과목 모의고사 총점',`- ${out.전과목.map(e=>`${mtMD(e.date)} ${e.score}/${e.total} (반 평균 ${e.mean}, ${e.rank}등/${e.n}명)`).join(' → ')}`);
   const lastAll=out.전과목[out.전과목.length-1],ex=lastAll&&MT.exRanks[lastAll.date],exRow=ex?mtFindRows(ex,name):[];
   if(exRow.length===1)L.push(`- 유기화학 제외 ${ex.total}문항(${mtMD(ex.date)}): ${exRow[0].score}/${ex.total} (반 평균 ${ex.mean}, ${exRow[0].rank}등/${ex.n}명)`);
@@ -4680,10 +4705,16 @@ function mtDataSig(d){   // 초안을 만든 뒤 분석 자료가 바뀌었는�
   if(MT.sigs[k]===undefined){const t=mtSummaryText(d.name,d.submittedAt),n=mtClassNote(d.name,d.submittedAt);MT.sigs[k]=t?rvHash(t+'\n'+(n?n.text:'')):'';}
   return MT.sigs[k];
 }
+function mtRecapRule(t){
+  const m=String(t).match(/- (\d+)월 종합\(/);
+  if(!m)return '';
+  const next=+m[1]===12?1:+m[1]+1;
+  return ` 「${+m[1]}월 종합」 줄이 있는 과목은 이번 시험만 말하지 말고 ${+m[1]}월 한 달의 흐름을 1~2문장으로 먼저 정리한 뒤, 그 결론에 이어 "그래서 ${next}월부터는 ~하면 좋겠습니다"라고 공부 방향을 1~2문장으로 쓰세요. 방향은 이번 달 커리큘럼 안에서 말하고, 새 교재나 진도 변경을 확정하지 마세요.`;
+}
 function mtPromptBlock(name,key,submittedAt){
   const t=mtSummaryText(name,submittedAt),c=MT.sum[key],note=mtClassNote(name,submittedAt);
   let b='';
-  if(t)b+=`\n## ★★ TEST·모의고사 분석 요약 — 앱이 결과 파일에서 직접 계산한 값 ★★\n🚨 **피드백에 쓰는 점수·문항 번호·정답률·등수는 이 블록에 있는 숫자만 쓰세요. 없는 숫자를 만들거나 계산하지 마세요.** 단원명은 이 블록에 있을 때만 쓰고, 없으면 문항 번호로만 말하세요. 시간 부족은 추정이므로 단정하지 마세요. 이 블록에 없는 과목은 분석을 쓰지 마세요.\n${t}\n`;
+  if(t)b+=`\n## ★★ TEST·모의고사 분석 요약 — 앱이 결과 파일에서 직접 계산한 값 ★★\n🚨 **피드백에 쓰는 점수·문항 번호·정답률·등수는 이 블록에 있는 숫자만 쓰세요. 없는 숫자를 만들거나 계산하지 마세요.** 단원명은 이 블록에 있을 때만 쓰고, 없으면 문항 번호로만 말하세요. 시간 부족은 추정이므로 단정하지 마세요. 이 블록에 없는 과목은 분석을 쓰지 마세요.${mtRecapRule(t)}\n${t}\n`;
   if(note)b+=`\n## 전과목 모의고사 반 전체 총평 (홍쌤이 학생들에게 공지한 글) — 참고용\n🚨 **반 전체에 대한 글입니다. 이 학생 개인의 결과로 바꿔 말하지 마세요.** 위 분석 요약에서 이 학생이 틀린 문항과 겹치는 내용만 골라 쓰고, 겹치지 않는 문항은 꺼내지 마세요. 문항 해설은 이 글에 있는 것만 쓰고 새로 지어내지 마세요. 이 글을 그대로 옮기지 마세요. 합격선·작년 합격생과 비교하지 마세요. 유기화학 제외 등수가 분석 요약에 있으면 전체 등수와 함께 볼 수 있습니다.\n<총평>\n${note.text.slice(0,MT_MAX_NOTE)}\n</총평>\n`;
   if(c&&c.text)b+=`\n## 최근 전화 상담 요약 (${(c.files||[]).map(f=>mtMD(f.date)).join(', ')} 통화) — 방향 판단용\n🚨 **방향 판단용입니다. 학생이 이번 주에 쓴 사실로 인용하지 마세요.** "상담 때 ~라고 했는데"처럼 꺼내지 말고, 여기서 정한 방향과 반대되는 지시만 하지 마세요. '피드백에서 피할 말'은 그대로 지키세요.\n${c.text}\n`;
   return b;
