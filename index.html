@@ -4655,7 +4655,7 @@ function mtLoadCached(item){
 // ── 화면 ──
 function mtNotConnected(){return !MT.dirs.length||MT.needPerm||!MT.scannedAt;}
 function mtFolderCard(){
-  const list=MT.dirs.map((d,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px"><span style="flex:1;word-break:break-all">📁 ${esc(d.handle.name)}</span><select onchange="mtSetKind(${i},this.value)" style="font-size:12px">${MT_KINDS.map(([v,l])=>`<option value="${v}"${d.kind===v?' selected':''}>${l}</option>`).join('')}</select><button class="btn-ghost btn-sm" onclick="mtRemoveDir(${i})">빼기</button></div>`).join('');
+  const list=MT.dirs.map((d,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px"><span style="flex:1;min-width:0;word-break:break-all">📁 ${esc(d.handle.name)}</span><select onchange="mtSetKind(${i},this.value)" style="font-size:12px;width:auto;flex:none;padding:4px 6px">${MT_KINDS.map(([v,l])=>`<option value="${v}"${d.kind===v?' selected':''}>${l}</option>`).join('')}</select><button class="btn-ghost btn-sm" style="flex:none;white-space:nowrap" onclick="mtRemoveDir(${i})">빼기</button></div>`).join('');
   const nCons=Object.keys(MT.consults).length;
   const byS=['생물','화학','유기','전과목'].map(s=>`${s} ${MT.tests.filter(t=>t.subject===s).length}회`).join(' · ');
   return `<div class="card"><div class="card-head">📂 TEST·상담 자료 폴더 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 이 PC에서 읽기만 합니다. 원본은 어디에도 올라가지 않아요</span></div>
