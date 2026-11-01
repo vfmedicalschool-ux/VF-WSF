@@ -4088,6 +4088,14 @@ ${schoolText?`\n## 주력 학교 본고사 특성\n${schoolText}\n`:""}
    - 상위권: 칭찬은 짧게 하고 분석을 더 깊게 쓰세요. 어려운 문항, 오답이 몰린 선지, 시간 운영, 쉬운 문제 실수까지 구체적으로 짚으세요. 합격권을 유지하려면 무엇을 다듬어야 하는지 지시하세요. 이 수준에서는 쉬운 문제 오답을 실수로 말해도 됩니다.
 🚨 **직접 고른 답의 정답률 70% 기준:** 블록의 「직접 고른 답의 정답률」을 과목별로 보고, 70%가 넘는 과목은 "직접 고른 답의 정답률이 70%를 넘어가면 본고사에서도 안정적으로 합격할 확률이 높아진다고 보면 됩니다"처럼 칭찬과 함께 쓰세요. 70%에 못 미치는 과목은 이 기준을 목표로 말해 주되, 하위권 학생은 지금 숫자를 나무라지 말고 조금씩 올려 가는 방향으로만 쓰세요. 이 말은 피드백 전체에서 1~2번만 쓰세요. 합격을 장담하지 말고 "확률이 높아진다"로만 쓰세요.
 🚨 **전과목 모의고사는 무조건 화학부터 풉니다.** 학생이 화학을 먼저 풀어 지쳤다고 써도 과목 순서를 바꿔 보라고 제안하지 마세요. 생물을 먼저 풀어 보라는 말, 순서를 실험해 보라는 말도 쓰지 마세요. 학생이 순서를 바꾸고 싶다고 물으면 화학부터 푸는 순서를 지키라고 답하세요. 지친다고 쓴 학생에게는 순서를 유지한 채 과목별 시간 배분과 넘어가는 기준을 연습하게 하세요.
+🚨 **시험 종류가 다르면 점수를 이어서 비교하지 마세요. 이 규칙은 다른 어떤 지침보다 우선합니다.** 과목 TEST와 전과목 모의고사는 다른 시험입니다. 분석 블록의 문항 수를 먼저 확인하세요.
+   - 전과목 모의고사는 정해진 시간 안에 세 과목을 함께 푸는 시험이고, 과목별 문항 수가 과목 TEST와 다릅니다. 화학 TEST와 유기 TEST의 개수를 전과목 구간의 개수와 나란히 놓지 마세요.
+   - 금지: "9→11→13→16→16으로 올라오다가 이번에 3개로 떨어졌어요", "24개에서 18/23으로 떨어졌어요", 과목 TEST 흐름 끝에 전과목 점수를 이어 붙이기, 전과목 점수를 보고 "떨어졌다", "회복했다", "하락", "올랐다"고 쓰기. 정답률로 바꿔서 이어 붙이는 것도 금지입니다.
+   - 전과목 구간은 그 시험 안에서만 평가하세요. 같은 시험의 반 평균, 등수, 직접 고른 답의 정답률, 틀린 문항을 쓰세요. 과목 TEST 흐름은 따로 말하고, 두 시험 사이를 비교해야 하면 「반 안의 위치」 값만 쓰세요.
+   - 시험 간 점수 변화는 같은 종류의 시험끼리, 같은 문항 수끼리만 말하세요. 과목 TEST 안에서도 문항 수가 다르면 개수가 아니라 괄호의 정답률로 비교하세요.
+   - 전과목 유기 구간처럼 문항이 적은 구간은 한 문제로 정답률이 크게 움직입니다. 개수로 실력을 판단하지 말고, 재출제 문항이 있으면 복습이 유지됐는지 점검하는 용도로 쓰세요.
+   - 회복 목표선과 다음 시험 목표 개수를 쓸 때는 어느 시험 기준인지 밝히고, 그 시험의 문항 수로만 쓰세요.
+   - 직접 고른 답의 정답률이 낮으면 "실력이 떨어진 건 아니에요"라고 쓰지 마세요.
 🚨 **칭찬·분석·할 일을 따로 쓰지 말고, 학생이 이번 주 쓴 공부 내용과 시험 결과를 이어서 쓰세요. 과목마다 이 연결을 먼저 찾고 쓰세요.**
    - 찾는 법: 학생이 쓴 공부 내용과 느낌("이해가 됐다", "출제 포인트가 보인다", "이 단원이 약하다")에서 단원·주제를 찾고, 분석 블록의 「최근 시험 단원별 결과」 「맞힌 문항 주제」 「틀린 문항 주제」에서 같은 내용을 찾으세요. 학생이 쓴 단원과 블록의 단원 이름이 다르면 내용이 같은지 주제까지 보고 판단하세요. 틀린 문항만 보지 말고 맞힌 문항까지 보세요.
    - 맞혔으면 잘한 점 문장에 바로 이으세요: "물질대사가 드디어 이해된다고 했는데, 이번 모의고사 7번 비순환적 광인산화를 실제로 맞혔어요. 공부한 게 시험에서 보이기 시작한 것 같아요."
@@ -4772,8 +4780,10 @@ function mtRecapMonth(cut){   // 달이 바뀐 뒤 2주 동안은 지난달 종�
   return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,'0')}`;
 }
 function mtPctOf(list){const t=list.reduce((a,e)=>a+e.total,0);return t?Math.round(list.reduce((a,e)=>a+e.score,0)/t*1000)/10:0;}
+// 전과목 구간은 문항 수·시간·출제 방식이 과목 TEST와 달라 점수를 이어서 비교하지 않는다
+function mtIsAll(e){return /전과목/.test(e.label);}
 function mtMonthLine(arr,ym){
-  const list=arr.filter(e=>e.date.slice(0,7)===ym);
+  const list=arr.filter(e=>e.date.slice(0,7)===ym&&!mtIsAll(e));
   if(!list.length)return '';
   const classPct=Math.round(list.reduce((a,e)=>a+e.mean,0)/list.reduce((a,e)=>a+e.total,0)*1000)/10;
   const x=[`정답률 ${mtPctOf(list)}%(반 평균 ${classPct}%)`];
@@ -4783,7 +4793,7 @@ function mtMonthLine(arr,ym){
     x.push(`최고 ${mtMD(hi.date)} ${hi.score}/${hi.total}, 최저 ${mtMD(lo.date)} ${lo.score}/${lo.total}`);
   }
   x.push(`쉬운 문제 실수 ${list.reduce((a,e)=>a+e.easy.length,0)}개`,`미응답 ${list.reduce((a,e)=>a+e.blank.length,0)}개`,`번호 몰림 ${list.filter(e=>e.cluster).length}회`);
-  const after=arr.filter(e=>e.date.slice(0,7)>ym);
+  const after=arr.filter(e=>e.date.slice(0,7)>ym&&!mtIsAll(e));
   if(after.length)x.push(`이후 시험 정답률 ${mtPctOf(after)}%`);
   return `- ${+ym.slice(5)}월 종합(시험 ${list.length}회): ${x.join(', ')}`;
 }
@@ -4797,7 +4807,8 @@ function mtChemLines(arr,last){
   if(cur&&cur.runs.length)L.push(`- 같은 번호가 이어진 구간: ${cur.runs.map(r=>`${r.qs.join('·')}번(${r.opt}번)`).join(', ')} → 직접 풀지 못하고 찍었을 가능성, 단정 금지`);
   const hard=last.right.filter(q=>last.rate[q]<60);
   if(hard.length)L.push(`- 반 정답률 60% 미만인데 맞힌 문항: ${mtQList(hard,last.rate,last.units)}`);
-  if(arr.length>=2)L.push(`- 쉬운 문제 실수 개수 추이: ${arr.slice(-4).map(e=>e.easy.length).join(' → ')}`);
+  const tests=arr.filter(e=>!mtIsAll(e));
+  if(tests.length>=2)L.push(`- 과목 TEST 쉬운 문제 실수 개수 추이: ${tests.slice(-4).map(e=>e.easy.length).join(' → ')}`);
   const recent=full.slice(-4);
   if(recent.length>=3){const always=recent[0].wrong.filter(q=>recent.every(e=>e.wrong.includes(q)||e.blank.includes(q)));if(always.length)L.push(`- 최근 화학 TEST ${recent.length}회에서 모두 놓친 번호: ${always.join('·')}번`);}
   return L;
@@ -4817,9 +4828,10 @@ function mtBioLines(arr,last){
     if(tr.length)L.push(`- 맞힌 문항 주제: ${tr.map(q=>`${q}번 ${last.topics[q]}`).join(', ')}`);
     if(tw.length)L.push(`- 틀린 문항 주제: ${tw.slice(0,15).map(q=>`${q}번 ${last.topics[q]}`).join(', ')}`);
   }
-  if(arr.length>=2){
-    L.push(`- 정답률 추이: ${arr.slice(-4).map(e=>Math.round(e.score/e.total*100)+'%').join(' → ')}`);
-    L.push(`- 쉬운 문제 실수 개수 추이: ${arr.slice(-4).map(e=>e.easy.length).join(' → ')}`);
+  const tests=arr.filter(e=>!mtIsAll(e));
+  if(tests.length>=2){
+    L.push(`- 과목 TEST 정답률 추이: ${tests.slice(-4).map(e=>mtPct(e.score,e.total)+'%').join(' → ')}`);
+    L.push(`- 과목 TEST 쉬운 문제 실수 개수 추이: ${tests.slice(-4).map(e=>e.easy.length).join(' → ')}`);
   }
   return L;
 }
@@ -4838,7 +4850,14 @@ function mtSubjectLines(sub,arr,recap,tier){
   L.push(`- 과목 수준: ${tier?mtTierText(tier):'누적 응시가 적어 판단 보류 — 전체 수준을 따르세요'}`);
   const ml=recap?mtMonthLine(arr,recap):'';
   if(ml)L.push(ml);
-  L.push(`- 점수 추이: ${arr.map(e=>`${mtMD(e.date)} ${e.score}/${e.total}`).join(' → ')}`);
+  const tests=arr.filter(e=>!mtIsAll(e)),alls=arr.filter(mtIsAll);
+  const trend=(l,pct)=>l.map(e=>`${mtMD(e.date)} ${e.score}/${e.total}${pct?`(${mtPct(e.score,e.total)}%)`:''}`).join(' → ');
+  if(tests.length)L.push(`- 과목 TEST 점수 추이: ${trend(tests,new Set(tests.map(e=>e.total)).size>1)}`);
+  if(alls.length)L.push(`- 전과목 모의고사 ${sub} 구간(과목 TEST와 다른 시험): ${trend(alls,true)}`);
+  if(tests.length&&alls.length){
+    const at=l=>Math.round(l.reduce((a,e)=>a+e.rank/e.n,0)/l.length*100);
+    L.push(`- 반 안의 위치(시험이 달라도 비교 가능한 값): 과목 TEST ${tests.length}회 평균 상위 ${at(tests)}% → 전과목 상위 ${at(alls)}%`);
+  }
   L.push(`- 최근 시험(${mtMD(last.date)} ${last.label}): ${last.score}/${last.total}, 반 평균 ${last.mean}, ${last.rank}등/${last.n}명, 직접 고른 답의 정답률 ${last.answeredRate}%`);
   if(last.wrong.length)L.push(`- 틀린 문항(반 정답률): ${mtQList(last.wrong.slice(0,15),last.rate,last.units)}${last.wrong.length>15?` 외 ${last.wrong.length-15}개`:''}`);
   if(last.easy.length)L.push(`- 쉬운 문제 실수(반 80% 이상 맞힘): ${mtQList(last.easy,last.rate,last.units)}`);
