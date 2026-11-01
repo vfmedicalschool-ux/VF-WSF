@@ -4144,7 +4144,7 @@ ${subjectBlock}
 
 [다음주 계획] ${nw?`생물: ${nw.생물_단원||"-"} / 화학: ${nw.화학_단원||"-"} / 유기: ${nw.유기_단원||"-"} / 다짐: ${nw.다짐||"-"}`:"(없음)"}
 </이번주_학생_원문>
-${mtBlock?"\n(예외: 위쪽 「TEST·모의고사 분석 요약」 블록의 숫자는 학생이 쓰지 않았어도 분석에 씁니다. 「최근 전화 상담 요약」은 방향 판단에만 쓰고 이번 주 사실로 인용하지 않습니다.)\n":""}
+${mtBlock?"\n(예외: 위쪽 「TEST·모의고사 분석 요약」 블록의 숫자와 「반 전체 총평」의 문항 내용은 학생이 쓰지 않았어도 분석에 씁니다. 「최근 전화 상담 요약」은 방향 판단에만 쓰고 이번 주 사실로 인용하지 않습니다.)\n":""}
 ## ⛔ 위 원문에 없으면 쓰지 않습니다 ⛔
 
 **아래는 실제로 터진 사고입니다. 똑같이 반복하지 마세요.**
@@ -4305,7 +4305,8 @@ const MT_SINCE='2026-10-01';                  // 이 날짜 이후 시험만 분
 const MT_SUBS=['생물','화학','유기'];
 const MT_KINDS=[['auto','자동 판단'],['생물','생물 결과'],['화학','화학 결과'],['유기','유기 결과'],['전과목','전과목 결과'],['상담','상담 자료']];
 const MT_MAX_TEXT=30000;                      // 상담 파일 하나당 요약에 보내는 최대 글자 수
-const MT={dirs:[],tests:[],consults:{},sections:{},units:{},issues:[],scanning:false,scannedAt:0,needPerm:false,sum:{},busy:{}};
+const MT_MAX_NOTE=6000;                       // 프롬프트에 넣는 총평 최대 글자 수
+const MT={dirs:[],tests:[],consults:{},sections:{},units:{},reuse:{},notes:{},exRanks:{},issues:[],scanning:false,scannedAt:0,needPerm:false,sum:{},sigs:{},busy:{}};
 
 // ── 폴더 핸들 저장 (IndexedDB, 이 브라우저에만) ──
 function mtDB(){return new Promise((res,rej)=>{const q=indexedDB.open('vf-wsf-mat',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
@@ -4462,21 +4463,57 @@ function mtParseLayout(rows,fname){
   });
   return {date:`${m[1]}-${m[2]}-${m[3]}`,q2s,units};
 }
+// 문항구성표 시트 「유기_선별7문항」: 재출제 유기 문항의 주제와 처음 풀 때 정답률
+function mtParseReuse(rows){
+  const head=(rows[0]||[]).map(h=>String(h==null?'':h).trim());
+  const qc=head.indexOf('새번호'),tc=head.indexOf('주제'),rc=head.indexOf('정답률');
+  if(qc<0||rc<0)throw new Error('새번호·정답률 열이 없음');
+  const out={};
+  rows.slice(1).forEach(r=>{const q=Number(r&&r[qc]),v=Number(r&&r[rc]);if(q&&Number.isFinite(v))out[q]={prev:v,topic:String((tc>=0&&r[tc])||'')};});
+  return out;
+}
+// 유기 제외 등수표(xlsx): 제목 행이 위에 있어 「이름」 열이 있는 행을 머리글로 찾는다
+function mtParseExRank(rows,fname){
+  const m=String(fname).match(/_(\d{4})(\d{2})(\d{2})/);
+  if(!m)throw new Error('파일 이름에서 시험일을 못 읽음');
+  const hi=rows.findIndex(r=>r&&r.some(c=>String(c==null?'':c).trim()==='이름'));
+  if(hi<0)throw new Error('「이름」 열이 없음');
+  const head=rows[hi].map(h=>String(h==null?'':h).trim());
+  const nc=head.indexOf('이름'),rc=head.findIndex(h=>h.startsWith('등수')),sc=head.findIndex(h=>h.startsWith('정답수'));
+  if(rc<0||sc<0)throw new Error('등수·정답수 열이 없음');
+  const tm=head[sc].match(/(\d+)\s*문항/);
+  if(!tm)throw new Error('정답수 열에서 문항 수를 못 읽음');
+  const students=[];
+  rows.slice(hi+1).forEach(r=>{
+    if(!r||typeof r[rc]!=='number'||typeof r[sc]!=='number'||!String(r[nc]||'').trim())return;
+    students.push({name:mtNormName(r[nc]),rank:r[rc],score:r[sc]});
+  });
+  if(!students.length)throw new Error('학생 행이 없음');
+  const mean=Math.round(students.reduce((a,x)=>a+x.score,0)/students.length*10)/10;
+  return {date:`${m[1]}-${m[2]}-${m[3]}`,total:+tm[1],mean,n:students.length,students,fname};
+}
+function mtNoteDate(text,path){
+  const m=String(text).match(/집계일\s*[:：]?\s*(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
+  if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  return mtConsultDate(path);
+}
 
 // ── 폴더 훑기 ──
-async function mtWalk(dir,path,out,depth){
+async function mtWalk(dir,path,out,depth,inAI){
   if(depth>8)return;
   for await(const [name,h] of dir.entries()){
-    if(/백업|AI작업|\(AI\)|^\./.test(name))continue;
+    if(/백업|\(AI\)|^\./.test(name))continue;
     const p=path+'/'+name;
-    if(h.kind==='directory')await mtWalk(h,p,out,depth+1);
+    const ai=inAI||/AI작업/.test(name);
+    if(h.kind==='directory')await mtWalk(h,p,out,depth+1,ai);
+    else if(ai){if(/총평.*\.txt$/i.test(name))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평만 읽는다
     else if(/\.(xlsx|txt)$/i.test(name)||name==='전과목_과목구간.json'||name==='문항단원.json')out.push({name,path:p,handle:h});
   }
 }
 async function mtScan(){
   if(MT.scanning)return;
   MT.scanning=true;MT.issues=[];render();
-  const tests={},consults={};let sections={},units={};
+  const tests={},consults={},reuse={},notes={},exRanks={};let sections={},units={};
   try{
     await mtEnsureXLSX();
     for(const d of MT.dirs){
@@ -4493,7 +4530,22 @@ async function mtScan(){
             const ws=wb.Sheets['문항구성']||wb.Sheets[wb.SheetNames[0]];
             const lay=mtParseLayout(window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),f.name);
             sections[lay.date]=lay.q2s;units[lay.date+'/전과목']=lay.units;
+            if(wb.Sheets['유기_선별7문항'])reuse[lay.date]=mtParseReuse(window.XLSX.utils.sheet_to_json(wb.Sheets['유기_선별7문항'],{header:1,raw:true,defval:null}));
           }catch(e){MT.issues.push(`${f.name}: ${e.message} — 전과목은 총점만 씁니다`);}
+        }else if(/등수표/.test(f.name)&&/유기/.test(f.name)&&/제외/.test(f.name)&&/\.xlsx$/i.test(f.name)){
+          try{
+            const wb=window.XLSX.read(await (await f.handle.getFile()).arrayBuffer(),{type:'array'});
+            const ws=wb.Sheets['등수(유기 제외)']||wb.Sheets[wb.SheetNames[0]];
+            const ex=mtParseExRank(window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),f.name);
+            exRanks[ex.date]=ex;
+          }catch(e){MT.issues.push(`${f.name}: ${e.message}`);}
+        }else if(/총평/.test(f.name)&&/\.txt$/i.test(f.name)){
+          if(mtSubjectOf(f.path,d.kind)!=='전과목')continue;
+          const text=(await (await f.handle.getFile()).text()).trim();
+          const date=mtNoteDate(text,f.path),draft=/검토용|초안/.test(f.name);
+          if(!date){MT.issues.push(`${f.name}: 시험일을 몰라 건너뜀`);continue;}
+          if(notes[date]&&!notes[date].draft&&draft)continue;     // 확정본이 있으면 검토용은 쓰지 않는다
+          notes[date]={text,fname:f.name,draft};
         }else if(/\.txt$/i.test(f.name)){
           if(d.kind!=='auto'&&d.kind!=='상담')continue;
           const date=mtConsultDate(f.name);
@@ -4518,7 +4570,7 @@ async function mtScan(){
     }
     MT.tests=Object.values(tests).sort((a,b)=>a.date.localeCompare(b.date));
     Object.values(consults).forEach(a=>a.sort((x,y)=>y.date.localeCompare(x.date)));
-    MT.consults=consults;MT.sections=sections;MT.units=units;MT.scannedAt=Date.now();MT.sum={};
+    MT.consults=consults;MT.sections=sections;MT.units=units;MT.reuse=reuse;MT.notes=notes;MT.exRanks=exRanks;MT.scannedAt=Date.now();MT.sum={};MT.sigs={};
   }catch(e){MT.issues.push(e.message);}
   MT.scanning=false;render();
 }
@@ -4538,8 +4590,15 @@ function mtPct(a,b){return b?Math.round(a/b*100):0;}
 function mtTestStats(test,qs){
   const scoreOf=s=>qs.filter(q=>test.key[q]!==''&&s.ans[q]===test.key[q]).length;
   const scores=test.students.map(scoreOf);
-  const rate={};qs.forEach(q=>rate[q]=mtPct(test.students.filter(s=>s.ans[q]===test.key[q]).length,test.students.length));
-  return {n:test.students.length,mean:Math.round(scores.reduce((a,b)=>a+b,0)/scores.length*10)/10,scores,rate,scoreOf};
+  const rate={},trap={};
+  qs.forEach(q=>{
+    rate[q]=Math.round(test.students.filter(s=>s.ans[q]===test.key[q]).length/test.students.length*1000)/10;
+    const cnt={};let wrongN=0;
+    test.students.forEach(s=>{if(s.ans[q]!==''&&s.ans[q]!==test.key[q]){wrongN++;cnt[s.ans[q]]=(cnt[s.ans[q]]||0)+1;}});
+    const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+    if(top&&wrongN>=10&&top[1]/wrongN>=0.5)trap[q]={opt:top[0],count:top[1],wrongN};   // 오답이 한 선지로 몰린 문항
+  });
+  return {n:test.students.length,mean:Math.round(scores.reduce((a,b)=>a+b,0)/scores.length*10)/10,scores,rate,trap,scoreOf};
 }
 function mtEntry(test,row,qs,label,useSheetRank){
   const st=mtTestStats(test,qs);
@@ -4547,13 +4606,16 @@ function mtEntry(test,row,qs,label,useSheetRank){
   const wrong=qs.filter(q=>row.ans[q]!==''&&row.ans[q]!==test.key[q]);
   const blank=qs.filter(q=>row.ans[q]==='');
   const easy=wrong.filter(q=>st.rate[q]>=80);
+  const hardWrong=wrong.filter(q=>st.rate[q]<=50);
+  const hardRight=qs.filter(q=>test.key[q]!==''&&row.ans[q]===test.key[q]&&st.rate[q]<=50);
+  const traps=wrong.filter(q=>st.trap[q]&&st.trap[q].opt===row.ans[q]).map(q=>({q,...st.trap[q]}));
   const back=qs.slice(Math.floor(qs.length/2));
   const backWrong=back.filter(q=>wrong.includes(q)&&!String(row.ans[q]).includes(','));
   const cnt={};backWrong.forEach(q=>cnt[row.ans[q]]=(cnt[row.ans[q]]||0)+1);
   const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
-  const cluster=(top&&top[1]>=3&&top[1]/backWrong.length>=0.6)?{opt:top[0],count:top[1],total:backWrong.length,from:back[0]}:null;
+  const cluster=(useSheetRank&&top&&top[1]>=3&&top[1]/backWrong.length>=0.6)?{opt:top[0],count:top[1],total:backWrong.length,from:back[0]}:null;
   const rank=(useSheetRank&&row.rank!=null)?row.rank:1+st.scores.filter(x=>x>score).length;
-  return {date:test.date,label,subject:test.subject,score,total:qs.length,mean:st.mean,rank,n:st.n,wrong,blank,easy,cluster,rate:st.rate,
+  return {date:test.date,label,subject:test.subject,score,total:qs.length,mean:st.mean,rank,n:st.n,wrong,blank,easy,hardWrong,hardRight,traps,cluster,rate:st.rate,
     answeredRate:mtPct(score,qs.length-blank.length),units:(MT.units||{})[test.date+'/'+test.subject]||null};
 }
 function mtWeekEnd(t){   // 제출일이 속한 주의 일요일까지(일요일 시험은 그 주차에 포함)
@@ -4586,6 +4648,11 @@ function mtSubjectLines(sub,arr){
   L.push(`- 최근 시험(${mtMD(last.date)} ${last.label}): ${last.score}/${last.total}, 반 평균 ${last.mean}, ${last.rank}등/${last.n}명, 직접 고른 답의 정답률 ${last.answeredRate}%`);
   if(last.wrong.length)L.push(`- 틀린 문항(반 정답률): ${mtQList(last.wrong.slice(0,15),last.rate,last.units)}${last.wrong.length>15?` 외 ${last.wrong.length-15}개`:''}`);
   if(last.easy.length)L.push(`- 쉬운 문제 실수(반 80% 이상 맞힘): ${mtQList(last.easy,last.rate,last.units)}`);
+  if(last.hardWrong.length)L.push(`- 어려운 문항 오답(반 정답률 50% 이하): ${mtQList(last.hardWrong,last.rate,last.units)}`);
+  if(last.hardRight.length)L.push(`- 어려운 문항 정답(반 정답률 50% 이하인데 맞힘): ${mtQList(last.hardRight,last.rate,last.units)}`);
+  if(last.traps.length)L.push(`- 오답이 몰린 선지를 고른 문항: ${last.traps.map(t=>`${t.q}번(${t.opt}번 선지, 오답자 ${t.wrongN}명 중 ${t.count}명)`).join(', ')}`);
+  const ru=(sub==='유기'&&/전과목/.test(last.label))?MT.reuse[last.date]:null;
+  if(ru){const dn=last.wrong.filter(q=>ru[q]&&ru[q].prev-last.rate[q]>=10);if(dn.length)L.push(`- 재출제 문항 중 반 정답률이 10%p 이상 떨어졌고 이 학생도 틀린 문항: ${dn.map(q=>`${q}번(${ru[q].topic}, 7~9월 ${ru[q].prev}% → 이번 ${last.rate[q]}%)`).join(', ')}`);}
   if(last.cluster)L.push(`- 뒤쪽 문항 번호 몰림: ${last.cluster.from}번 이후 오답 ${last.cluster.total}개 중 ${last.cluster.count}개가 ${last.cluster.opt}번 선지 → 시간 부족 추정`);
   if(last.blank.length)L.push(`- 미응답: ${mtQList(last.blank)}`);
   const u={};arr.forEach(e=>{if(e.units)new Set(e.wrong.map(q=>e.units[q]).filter(Boolean)).forEach(x=>u[x]=(u[x]||0)+1);});
@@ -4599,12 +4666,25 @@ function mtSummaryText(name,submittedAt){
   const L=[];
   MT_SUBS.forEach(s=>L.push(...mtSubjectLines(s,out[s])));
   if(out.전과목.length)L.push('■ 전과목 모의고사 총점',`- ${out.전과목.map(e=>`${mtMD(e.date)} ${e.score}/${e.total} (반 평균 ${e.mean}, ${e.rank}등/${e.n}명)`).join(' → ')}`);
+  const lastAll=out.전과목[out.전과목.length-1],ex=lastAll&&MT.exRanks[lastAll.date],exRow=ex?mtFindRows(ex,name):[];
+  if(exRow.length===1)L.push(`- 유기화학 제외 ${ex.total}문항(${mtMD(ex.date)}): ${exRow[0].score}/${ex.total} (반 평균 ${ex.mean}, ${exRow[0].rank}등/${ex.n}명)`);
   return L.join('\n');
 }
+function mtClassNote(name,submittedAt){   // 이 학생이 본 가장 최근 전과목 모의고사의 총평
+  const a=mtAnalyze(name,submittedAt).out.전과목,last=a[a.length-1];
+  return last?MT.notes[last.date]||null:null;
+}
+function mtDataSig(d){   // 초안을 만든 뒤 분석 자료가 바뀌었는지 비교하는 값
+  if(!MT.scannedAt)return '';
+  const k=d.name+'|'+mtWeekEnd(d.submittedAt);
+  if(MT.sigs[k]===undefined){const t=mtSummaryText(d.name,d.submittedAt),n=mtClassNote(d.name,d.submittedAt);MT.sigs[k]=t?rvHash(t+'\n'+(n?n.text:'')):'';}
+  return MT.sigs[k];
+}
 function mtPromptBlock(name,key,submittedAt){
-  const t=mtSummaryText(name,submittedAt),c=MT.sum[key];
+  const t=mtSummaryText(name,submittedAt),c=MT.sum[key],note=mtClassNote(name,submittedAt);
   let b='';
   if(t)b+=`\n## ★★ TEST·모의고사 분석 요약 — 앱이 결과 파일에서 직접 계산한 값 ★★\n🚨 **피드백에 쓰는 점수·문항 번호·정답률·등수는 이 블록에 있는 숫자만 쓰세요. 없는 숫자를 만들거나 계산하지 마세요.** 단원명은 이 블록에 있을 때만 쓰고, 없으면 문항 번호로만 말하세요. 시간 부족은 추정이므로 단정하지 마세요. 이 블록에 없는 과목은 분석을 쓰지 마세요.\n${t}\n`;
+  if(note)b+=`\n## 전과목 모의고사 반 전체 총평 (홍쌤이 학생들에게 공지한 글) — 참고용\n🚨 **반 전체에 대한 글입니다. 이 학생 개인의 결과로 바꿔 말하지 마세요.** 위 분석 요약에서 이 학생이 틀린 문항과 겹치는 내용만 골라 쓰고, 겹치지 않는 문항은 꺼내지 마세요. 문항 해설은 이 글에 있는 것만 쓰고 새로 지어내지 마세요. 이 글을 그대로 옮기지 마세요. 합격선·작년 합격생과 비교하지 마세요. 유기화학 제외 등수가 분석 요약에 있으면 전체 등수와 함께 볼 수 있습니다.\n<총평>\n${note.text.slice(0,MT_MAX_NOTE)}\n</총평>\n`;
   if(c&&c.text)b+=`\n## 최근 전화 상담 요약 (${(c.files||[]).map(f=>mtMD(f.date)).join(', ')} 통화) — 방향 판단용\n🚨 **방향 판단용입니다. 학생이 이번 주에 쓴 사실로 인용하지 마세요.** "상담 때 ~라고 했는데"처럼 꺼내지 말고, 여기서 정한 방향과 반대되는 지시만 하지 마세요. '피드백에서 피할 말'은 그대로 지키세요.\n${c.text}\n`;
   return b;
 }
@@ -4661,7 +4741,7 @@ function mtFolderCard(){
   return `<div class="card"><div class="card-head">📂 TEST·상담 자료 폴더 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 이 PC에서 읽기만 합니다. 원본은 어디에도 올라가지 않아요</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-ghost btn-sm" onclick="mtConnect()">📂 자료 폴더 연결</button>${MT.needPerm?`<button class="btn-ghost btn-sm" onclick="mtReconnect()">🔓 다시 연결 (권한 확인)</button>`:''}${MT.dirs.length&&!MT.needPerm?`<button class="btn-ghost btn-sm" onclick="mtScan()" ${MT.scanning?'disabled':''}>🔄 다시 읽기</button>`:''}</div>
     ${list}
-    <div style="font-size:12px;margin-top:8px;color:#6e6e73">${MT.scanning?'자료를 읽는 중…':MT.scannedAt?`${byS} · 상담 ${nCons}명 · 전과목 구간 ${Object.keys(MT.sections).length}회분 · 단원 매핑 ${Object.keys(MT.units).length}회분`:(MT.dirs.length?'아직 읽지 못했습니다':'⚠️ TEST·상담 자료 미연결 — 지금은 기존 방식대로 생성됩니다')}</div>
+    <div style="font-size:12px;margin-top:8px;color:#6e6e73">${MT.scanning?'자료를 읽는 중…':MT.scannedAt?`${byS} · 상담 ${nCons}명 · 전과목 구간 ${Object.keys(MT.sections).length}회분 · 단원 매핑 ${Object.keys(MT.units).length}회분 · 총평 ${Object.keys(MT.notes).length}건 · 유기 제외 등수 ${Object.keys(MT.exRanks).length}건`:(MT.dirs.length?'아직 읽지 못했습니다':'⚠️ TEST·상담 자료 미연결 — 지금은 기존 방식대로 생성됩니다')}</div>
     ${MT.issues.length?`<div style="font-size:11px;color:#c45400;margin-top:6px;line-height:1.6">${MT.issues.map(x=>'· '+esc(x)).join('<br>')}</div>`:''}
   </div>`;
 }
@@ -4670,10 +4750,11 @@ function mtEvidenceCard(item){
   if(mtNotConnected())return `<div class="card" style="border-color:#f0d68a;background:#fffbef"><div style="font-size:12px;color:#7a5b00">⚠️ TEST·상담 자료 미연결 — 분석 없이 기존 방식으로 생성됩니다. <button class="btn-ghost btn-sm" onclick="${MT.needPerm?'mtReconnect()':'mtConnect()'}">${MT.needPerm?'다시 연결':'폴더 연결'}</button></div></div>`;
   const d=item.data;
   const {holds}=mtAnalyze(d.name,d.submittedAt);
-  const t=mtSummaryText(d.name,d.submittedAt),c=MT.sum[item.key],files=mtConsultFiles(d.name,d.submittedAt);
+  const t=mtSummaryText(d.name,d.submittedAt),c=MT.sum[item.key],files=mtConsultFiles(d.name,d.submittedAt),note=mtClassNote(d.name,d.submittedAt);
   return `<div class="card" data-mt-card="1"><div class="card-head">📊 TEST 분석 요약 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— AI에게 그대로 들어가는 값</span></div>
     <div style="white-space:pre-wrap;font-size:12px;line-height:1.6">${t?esc(t):'이 학생의 시험 결과를 찾지 못했습니다. 분석 없이 생성됩니다.'}</div>
     ${holds.length?`<div style="font-size:11px;color:#c45400;margin-top:6px">${holds.map(esc).join('<br>')}</div>`:''}
+    ${note?`<div style="font-size:11px;color:#6e6e73;margin-top:6px">📝 반 전체 총평 함께 반영: ${esc(note.fname)}</div>`:''}
     <div class="card-head" style="margin-top:12px">☎️ 최근 상담 요약 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 방향 판단용, 이번 주 사실로 인용 안 함</span></div>
     <div style="white-space:pre-wrap;font-size:12px;line-height:1.6">${c&&c.text?esc(c.text):files.length?`상담 파일 ${files.length}개(${files.map(f=>mtMD(f.date)).join(', ')}) — 생성할 때 요약합니다.`:'상담 파일이 없습니다.'}</div></div>`;
 }
@@ -6253,6 +6334,7 @@ async function rvGenOne(key){
   const pl=await loadPrevList(item.data.name,item.data.month,item.data.week);
   try{await mtEnsureConsult(key,item.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
   const note=[item.data.teacherNote,rvExtraInstruction(key,rvFreshPrep(key))].filter(x=>String(x||'').trim()).join('\n\n');
+  const dataSig=mtDataSig(item.data);
   const raw=await rvCallAI(buildPrompt({...item.data,trait:info.trait||'',school:info.school||'',prevRecord:pl[0]||null,prevRecord2:pl[1]||null,teacherNote:note}),6000,150000);
   const {body,decisions}=rvSplitDecision(raw);
   const ref=rvRef(key);
@@ -6261,7 +6343,7 @@ async function rvGenOne(key){
     const doc=await tx.get(ref);const cur=doc.exists?doc.data():{};
     if(String(cur.draft||'').trim())return null;   // 그사이 생긴 초안은 덮어쓰지 않는다
     const n=(cur.draftRev||0)+1;
-    tx.set(ref,{key,name:item.data.name,month:String(item.data.month),week:String(item.data.week),draft:body,draftRev:n,draftAt:firebase.firestore.FieldValue.serverTimestamp(),draftSig:sig,lastAI:{text:body,decisions,at,stale:false},...(cur.aiOriginal?{}:{aiOriginal:body,aiGeneratedAt:at})},{merge:true});
+    tx.set(ref,{key,name:item.data.name,month:String(item.data.month),week:String(item.data.week),draft:body,draftRev:n,draftAt:firebase.firestore.FieldValue.serverTimestamp(),draftSig:sig,lastAI:{text:body,decisions,at,stale:false,dataSig},...(cur.aiOriginal?{}:{aiOriginal:body,aiGeneratedAt:at})},{merge:true});
     return n;
   });
   if(rev==null)return 'skip';
@@ -6292,6 +6374,12 @@ function rvGenStop(){if(R.gen)R.gen.stop=true;render();}
 function rvDraftStale(key){
   const rv=rvRev(key),it=rvSub(key);
   return !!(rv&&rv.draftSig&&it&&!it.data.feedbackApproved&&rv.draftSig!==rvStudentSig(it.data));
+}
+function rvDataStale(key){   // 초안을 만든 뒤 시험 결과·총평이 새로 들어온 경우
+  const rv=rvRev(key),it=rvSub(key);
+  if(!rv||!it||it.data.feedbackApproved||!rv.lastAI||!rv.lastAI.text)return false;
+  const now=mtDataSig(it.data);
+  return !!now&&rv.lastAI.dataSig!==now;
 }
 
 // ══════════ 2단계 AI: 피드백 문장화 (선생님 메모·확인된 지도 원칙 우선) ══════════
@@ -6341,12 +6429,13 @@ async function rvDraft(){
     let prev1=p1,prev2=p2;
     if(R.key!==key){const pl=await loadPrevList(item.data.name,item.data.month,item.data.week);prev1=pl[0]||null;prev2=pl[1]||null;}
     try{await mtEnsureConsult(key,item.data);}catch(e){console.warn('상담 요약 실패:',e.message);}
+    const dataSig=mtDataSig(item.data);
     const raw=await rvCallAI(buildPrompt({...item.data,trait:info.trait||'',school:info.school||'',prevRecord:prev1,prevRecord2:prev2,teacherNote:note}),6000,150000);
     const {body,decisions}=rvSplitDecision(raw);
     const now=rvSub(key);
     const stale=!now||rvStudentSig(now.data)!==sig;
     const meta=rvMeta(key);
-    const patch={lastAI:{text:body,decisions,at:Date.now(),stale}};
+    const patch={lastAI:{text:body,decisions,at:Date.now(),stale,dataSig}};
     if(!meta.aiOriginal&&!item.data.originalFeedback){patch.aiOriginal=body;patch.aiGeneratedAt=Date.now();}   // 기존 화면에서 만든 원본이 있으면 그것이 기준
     try{await rvWriteMeta(key,patch);}catch(e){}
     const result={after:body,decisions,stale,label:'AI 초안'};
@@ -6704,6 +6793,7 @@ function rvColSum(src){
     ...((R.dec[key]!=null?R.dec[key]:((meta.lastAI||{}).decisions||''))?[`<div class="rv-item"><b>AI 초안이 분리한 제안</b><div style="white-space:pre-wrap">${esc(R.dec[key]!=null?R.dec[key]:(meta.lastAI||{}).decisions)}</div></div>`]:[])].join('');
   return `<div class="rv-col rv-c-sum" data-rv-region="sum" id="rv-col-sum">
     ${rvDraftStale(key)?'<div class="rv-msg warn">오래된 초안: 초안을 만든 뒤 학생이 원문을 다시 제출했습니다.</div>':''}
+    ${rvDataStale(key)?'<div class="rv-msg warn">자료 갱신: 초안을 만든 뒤 시험 결과·총평이 바뀌었습니다. AI 초안을 다시 만들면 새 자료가 반영됩니다. 기존 초안은 비교 후 바꿉니다.</div>':''}
     ${mtEvidenceCard(S.sel)}
     <h3>🔎 이번 주 핵심 요약</h3>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">${prepState}
@@ -6823,7 +6913,7 @@ function rvTop(){
 function rvQueueHtml(){
   const q=rvQueue();
   return `<div class="rv-queue" data-rv-region="queue" id="rv-queue">
-    ${q.length?q.map(s=>{const st=rvStatus(s);return `<div class="rv-qi${s.key===R.key?' cur':''}" onclick="rvOpen('${esc(s.key)}')"><span>${esc(s.data.name)}${R.busy['prep:'+s.key]||R.busy['draft:'+s.key]?' ⏳':''}${R.pending[s.key]?' 📩':''}${rvDraftStale(s.key)?' ⚠️오래된 초안':''}</span>${rvPill(st)}</div>`;}).join('')
+    ${q.length?q.map(s=>{const st=rvStatus(s);return `<div class="rv-qi${s.key===R.key?' cur':''}" onclick="rvOpen('${esc(s.key)}')"><span>${esc(s.data.name)}${R.busy['prep:'+s.key]||R.busy['draft:'+s.key]?' ⏳':''}${R.pending[s.key]?' 📩':''}${rvDraftStale(s.key)?' ⚠️오래된 초안':''}${rvDataStale(s.key)?' 🔄자료 갱신':''}</span>${rvPill(st)}</div>`;}).join('')
       :`<div class="rv-note" style="padding:10px">${rvWeekItems().length?'이 조건에 맞는 학생이 없습니다.':'이 주차에 제출이 없습니다.'}</div>`}
   </div>`;
 }
