@@ -3367,7 +3367,7 @@ const SEP_SPECIAL=["박진성"];
 function isSepStart(n){return SEP_START.includes(String(n||"").trim());}
 function isSepSpecial(n){return SEP_SPECIAL.includes(String(n||"").trim());}
 function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRecord2,teacherNote,submittedAt}){
-  const mtBlock=mtPromptBlock(name,`${name}_${month}-${week}`,submittedAt),noOrg=mtIsNoOrg(name);
+  const mtBlock=mtPromptBlock(name,`${name}_${month}-${week}`,mtWhen({month,week,submittedAt})),noOrg=mtIsNoOrg(name);
   // ★ 홍쌤이 생성 전에 직접 적어둔 지시 — 무엇보다 우선
   const noteBlock=(teacherNote&&String(teacherNote).trim())?
     `\n\n████████ 홍쌤이 이 학생을 직접 보고 남긴 지시 — 최우선 반영 ████████\n${String(teacherNote).trim()}\n\n→ 위 내용은 홍쌤이 학생 제출을 읽고 직접 적은 것입니다. **다른 어떤 규칙보다 우선합니다.**\n→ 여기 적힌 항목은 반드시 해당 과목 피드백에 녹여 쓰세요. 빠뜨리면 홍쌤이 손으로 다시 써야 합니다.\n→ 표현은 홍쌤 말투로 다듬되 내용과 방향은 그대로 살리세요.\n→ 여기에 없는 내용을 추가할 때는 학생이 실제로 쓴 것만 다루세요.\n████████████████████████████████████████████\n`:"";
@@ -4795,6 +4795,16 @@ function mtWeekEnd(t){   // 제출일이 속한 주의 일요일까지(일요일
   const e=new Date(d.getTime()+((7-d.getDay())%7)*86400000);
   return `${e.getFullYear()}-${String(e.getMonth()+1).padStart(2,'0')}-${String(e.getDate()).padStart(2,'0')}`;
 }
+// 분석 기준일은 주차(월·주) 기준: 같은 주차 제출들이 가장 많이 속한 일요일. 미리(전 주 일요일 밤) 내거나 월요일 새벽에 낸 제출도 그 주차 시험으로 분석한다
+function mtLabelCut(d){
+  if(!d||d.month==null||d.week==null)return null;
+  const c={},add=t=>{if(toDate(t)){const k=mtWeekEnd(t);c[k]=(c[k]||0)+1;}};
+  (S.subs||[]).forEach(s=>{if(s&&s.data&&String(s.data.month)===String(d.month)&&String(s.data.week)===String(d.week))add(s.data.submittedAt);});
+  if(!Object.keys(c).length)add(d.submittedAt);
+  const best=Object.entries(c).sort((a,b)=>b[1]-a[1]||b[0].localeCompare(a[0]))[0];
+  return best?best[0]:null;
+}
+function mtWhen(d){const c=mtLabelCut(d);return c?{toDate:()=>new Date(c+'T12:00:00')}:(d&&d.submittedAt);}
 function mtAnalyze(name,submittedAt){
   const cut=mtWeekEnd(submittedAt);
   const out={생물:[],화학:[],유기:[],전과목:[]},holds=[],noOrg=mtIsNoOrg(name);
@@ -4946,8 +4956,8 @@ function mtClassNote(name,submittedAt){   // 이 학생이 본 가장 최근 전
 }
 function mtDataSig(d){   // 초안을 만든 뒤 분석 자료가 바뀌었는지 비교하는 값
   if(!MT.scannedAt)return '';
-  const k=d.name+'|'+mtWeekEnd(d.submittedAt);
-  if(MT.sigs[k]===undefined){const t=mtSummaryText(d.name,d.submittedAt),n=mtClassNote(d.name,d.submittedAt);MT.sigs[k]=t?rvHash(t+'\n'+(n?n.text:'')):'';}
+  const w=mtWhen(d),k=d.name+'|'+mtWeekEnd(w);
+  if(MT.sigs[k]===undefined){const t=mtSummaryText(d.name,w),n=mtClassNote(d.name,w);MT.sigs[k]=t?rvHash(t+'\n'+(n?n.text:'')):'';}
   return MT.sigs[k];
 }
 function mtRecapRule(t){
@@ -4984,7 +4994,7 @@ ${texts.map(t=>`<상담 날짜="${t.date}">\n${mtClip(t.text)}\n</상담>`).join
 }
 async function mtEnsureConsult(key,data,opts){
   const noAI=opts&&opts.noAI;
-  const files=mtConsultFiles(data.name,data.submittedAt);
+  const files=mtConsultFiles(data.name,mtWhen(data));
   if(!files.length){delete MT.sum[key];return null;}
   const texts=[];
   for(const f of files)texts.push({date:f.date,text:await (await f.handle.getFile()).text()});
@@ -5030,8 +5040,8 @@ function mtEvidenceCard(item){
   if(!item)return '';
   if(mtNotConnected())return `<div class="card" style="border-color:#f0d68a;background:#fffbef"><div style="font-size:12px;color:#7a5b00">⚠️ TEST·상담 자료 미연결 — ${MT.dirs.length?'다시 연결해야 생성할 수 있습니다':'분석 없이 기존 방식으로 생성됩니다'}. <button class="btn-ghost btn-sm" onclick="${MT.needPerm?'mtReconnect()':'mtConnect()'}">${MT.needPerm?'다시 연결':'폴더 연결'}</button></div></div>`;
   const d=item.data;
-  const {holds}=mtAnalyze(d.name,d.submittedAt);
-  const t=mtSummaryText(d.name,d.submittedAt),c=MT.sum[item.key],files=mtConsultFiles(d.name,d.submittedAt),note=mtClassNote(d.name,d.submittedAt);
+  const w=mtWhen(d),{holds}=mtAnalyze(d.name,w);
+  const t=mtSummaryText(d.name,w),c=MT.sum[item.key],files=mtConsultFiles(d.name,w),note=mtClassNote(d.name,w);
   return `<div class="card" data-mt-card="1"><div class="card-head">📊 TEST 분석 요약 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— AI에게 그대로 들어가는 값</span></div>
     <div style="white-space:pre-wrap;font-size:12px;line-height:1.6">${t?esc(t):'이 학생의 시험 결과를 찾지 못했습니다. 분석 없이 생성됩니다.'}</div>
     ${holds.length?`<div style="font-size:11px;color:#c45400;margin-top:6px">${holds.map(esc).join('<br>')}</div>`:''}
