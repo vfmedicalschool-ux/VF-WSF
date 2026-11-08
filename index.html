@@ -4537,8 +4537,8 @@ function mtParseLayout(rows,fname){
   const m=String(fname).match(/_(\d{4})(\d{2})(\d{2})/);
   if(!m)throw new Error('파일 이름에서 시험일을 못 읽음');
   const head=(rows[0]||[]).map(h=>String(h==null?'':h).trim());
-  const qc=head.indexOf('새번호'),sc=head.indexOf('과목'),uc=head.indexOf('출처_단원');
-  if(qc<0||sc<0)throw new Error('새번호·과목 열이 없음');
+  const qc=head.includes('새번호')?head.indexOf('새번호'):head.indexOf('시험번호'),sc=head.indexOf('과목'),uc=head.indexOf('출처_단원');
+  if(qc<0||sc<0)throw new Error('새번호(시험번호)·과목 열이 없음');
   const q2s={},units={};
   rows.slice(1).forEach(r=>{
     const q=Number(r&&r[qc]);if(!q)return;
@@ -4554,10 +4554,12 @@ function mtParseLayout(rows,fname){
 // 문항구성표 시트 「유기_선별7문항」: 재출제 유기 문항의 주제와 처음 풀 때 정답률
 function mtParseReuse(rows){
   const head=(rows[0]||[]).map(h=>String(h==null?'':h).trim());
-  const qc=head.indexOf('새번호'),tc=head.indexOf('주제'),rc=head.indexOf('정답률');
-  if(qc<0||rc<0)throw new Error('새번호·정답률 열이 없음');
+  const qc=head.includes('새번호')?head.indexOf('새번호'):head.indexOf('시험번호'),tc=head.includes('주제')?head.indexOf('주제'):head.indexOf('단원'),rc=head.indexOf('정답률');
+  if(qc<0||rc<0)throw new Error('새번호(시험번호)·정답률 열이 없음');
   const out={};
   rows.slice(1).forEach(r=>{const q=Number(r&&r[qc]),v=Number(r&&r[rc]);if(q&&Number.isFinite(v))out[q]={prev:v,topic:String((tc>=0&&r[tc])||'')};});
+  const vs=Object.values(out);
+  if(vs.length&&vs.every(x=>x.prev<=1))vs.forEach(x=>{x.prev=Math.round(x.prev*1000)/10;});   // 2회 표는 0.684처럼 비율로 적혀 있다 → 퍼센트
   return out;
 }
 // 유기 제외 등수표(xlsx): 제목 행이 위에 있어 「이름」 열이 있는 행을 머리글로 찾는다
@@ -4594,14 +4596,14 @@ async function mtWalk(dir,path,out,depth,inAI){
     const p=path+'/'+name;
     const ai=inAI||/AI작업/.test(name);
     if(h.kind==='directory')await mtWalk(h,p,out,depth+1,ai);
-    else if(ai){if(/총평.*\.txt$/i.test(name))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평만 읽는다
+    else if(ai){if((/총평.*\.txt$/i.test(name)&&!/수정전|지침/.test(name))||(/문항구성표/.test(name)&&/\.xlsx$/i.test(name)))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평(수정 전 사본·작업 지침 제외)과 문항구성표만 읽는다
     else if(/\.(xlsx|txt)$/i.test(name)||name==='전과목_과목구간.json'||name==='문항단원.json'||(/해설/.test(name)&&/\.pdf$/i.test(name)))out.push({name,path:p,handle:h});
   }
 }
 async function mtScan(){
   if(MT.scanning)return;
   MT.scanning=true;MT.issues=[];render();
-  const tests={},consults={},reuse={},notes={},exRanks={},topics={},pdfs={};let sections={},units={};
+  const tests={},consults={},reuse={},notes={},exRanks={},topics={},pdfs={},layName={};let sections={},units={};
   try{
     await mtEnsureXLSX();
     for(const d of MT.dirs){
@@ -4617,10 +4619,13 @@ async function mtScan(){
         }else if(/문항구성표/.test(f.name)&&/\.xlsx$/i.test(f.name)){
           try{
             const wb=window.XLSX.read(await (await f.handle.getFile()).arrayBuffer(),{type:'array'});
-            const ws=wb.Sheets['문항구성']||wb.Sheets[wb.SheetNames[0]];
+            const ws=wb.Sheets['문항구성']||wb.Sheets[wb.SheetNames.find(n=>/^문항구성/.test(n))]||wb.Sheets[wb.SheetNames[0]];   // 1회 「문항구성」, 2회 「문항구성_60」
             const lay=mtParseLayout(window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),f.name);
+            if(layName[lay.date]&&layName[lay.date]>f.name)continue;   // 같은 시험의 구성표가 여럿이면 이름이 뒤인 것(_v2 등 새 판)을 쓴다
+            layName[lay.date]=f.name;
             sections[lay.date]=lay.q2s;units[lay.date+'/전과목']=lay.units;
-            if(wb.Sheets['유기_선별7문항'])reuse[lay.date]=mtParseReuse(window.XLSX.utils.sheet_to_json(wb.Sheets['유기_선별7문항'],{header:1,raw:true,defval:null}));
+            const rs=wb.SheetNames.find(n=>/^유기_선/.test(n));   // 1회 「유기_선별7문항」, 2회 「유기_선정8」
+            if(rs)reuse[lay.date]=mtParseReuse(window.XLSX.utils.sheet_to_json(wb.Sheets[rs],{header:1,raw:true,defval:null}));else delete reuse[lay.date];
           }catch(e){MT.issues.push(`${f.name}: ${e.message} — 전과목은 총점만 씁니다`);}
         }else if(/등수표/.test(f.name)&&/유기/.test(f.name)&&/제외/.test(f.name)&&/\.xlsx$/i.test(f.name)){
           try{
@@ -4632,7 +4637,7 @@ async function mtScan(){
         }else if(/총평/.test(f.name)&&/\.txt$/i.test(f.name)){
           if(mtSubjectOf(f.path,d.kind)!=='전과목')continue;
           const text=(await (await f.handle.getFile()).text()).trim();
-          const date=mtNoteDate(text,f.path),draft=/검토용|초안/.test(f.name);
+          const date=mtNoteDate(text,f.path),draft=/검토용|초안|승인대기/.test(f.name);
           if(!date){MT.issues.push(`${f.name}: 시험일을 몰라 건너뜀`);continue;}
           if(notes[date]&&!notes[date].draft&&draft)continue;     // 확정본이 있으면 검토용은 쓰지 않는다
           notes[date]={text,fname:f.name,draft};
