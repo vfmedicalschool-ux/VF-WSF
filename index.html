@@ -5821,7 +5821,7 @@ function hlPhrase(text,q){
   return out.replace(/\u0001/g,'<mark class="hl">').replace(/\u0002/g,'</mark>');
 }
 function searchPhrase(){
-  const q=(document.getElementById('phrase-q')?.value||'').trim();
+  const q=((document.getElementById('rv-phrase-q')||document.getElementById('phrase-q'))?.value||'').trim();
   S.phraseQ=q;
   if(q.length<2){ S.phraseHits=[]; render(); return; }
   const words=q.split(/\s+/).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).filter(Boolean);
@@ -7129,6 +7129,15 @@ function rvChecksHtml(){
   if(ai){h+=`<h4>AI 검수 ${ai.forText!==rvHash(R.editor)?'<span class="rv-st rv-st-p">초안이 바뀐 뒤의 결과</span>':''}</h4>`+(ai.issues.length?ai.issues.map(x=>row(x.type,x.sentence?x.sentence.slice(0,160):'(해당 문장 없음)',esc(x.reason)+' '+(x.ev?rvEvChip(x.ev,src):''),'p')).join(''):'<div class="rv-note">AI 검수에서 지적한 항목이 없습니다.</div>');}
   return h+`<div class="rv-note" style="margin-top:6px">⚠️ 경고는 키워드·유사도 기반이라 틀릴 수 있고, 경고가 없다고 정확성이 보장되지는 않습니다. 최종 확인은 선생님이 합니다.</div>`;
 }
+// 예전에 쓴 문구 찾기(기존 화면과 같은 검색). 입력 중에는 입력칸이 든 영역을 다시 그리지 않으므로 검색칸과 결과를 다른 영역으로 나눈다.
+function rvPhraseHtml(){
+  const H=S.phraseHits||[];
+  return `<div class="rv-sec" style="border:1px solid #e0d4f0;background:#fbf9ff;border-radius:10px;padding:8px 10px;margin-bottom:10px">
+    <div data-rv-region="phraseq"><div style="font-weight:700;color:#5b2ec4;font-size:13px;margin-bottom:6px">🔍 예전에 쓴 문구 찾기 <span style="font-weight:400;color:#aeaeb2;font-size:11px">— 다른 학생에게 썼던 표현 재사용</span></div>
+    <div style="display:flex;gap:6px"><input id="rv-phrase-q" value="${esc(S.phraseQ||'')}" placeholder="예: 근사 / 식곤증 / 취침 루틴 / 랜덤 test" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')searchPhrase()"><button class="rv-btn sm" onclick="searchPhrase()" style="white-space:nowrap">검색</button></div></div>
+    <div data-rv-region="phraseres">${H.length?`<div style="font-size:11px;font-weight:700;color:#5b2ec4;margin-top:6px">${H.length}건</div><div style="margin-top:4px;max-height:260px;overflow-y:auto">`+H.map((x,i)=>`<div style="border-top:1px solid #eee;padding:7px 0"><div style="font-size:10px;color:#86868b;margin-bottom:2px">${esc(x.name)} · ${esc(x.mw)}${x.trait?` · ${esc(x.trait)}`:''} <button onclick="copyPhrase(${i})" style="border:none;background:#efe8ff;color:#5b2ec4;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;cursor:pointer;margin-left:4px">${S.phraseCopied===i?'복사됨 ✓':'복사'}</button></div><div style="font-size:11.5px;line-height:1.8;color:#3c3c43">${hlPhrase(x.text,S.phraseQ)}</div></div>`).join('')+`</div>`:(S.phraseQ&&S.phraseQ.length>=2?`<div style="font-size:11px;color:#aeaeb2;margin-top:7px">일치하는 문구가 없습니다.</div>`:'')}</div>
+  </div>`;
+}
 function rvColEd(){
   const key=R.key,it=S.sel,d=it.data;
   const locked=isLocked(d.month,d.week);
@@ -7141,6 +7150,7 @@ function rvColEd(){
   const changedAfter=d.feedbackApproved&&!approvedNow;
   const busyAI=!!R.busy['draft:'+key];
   return `<div class="rv-col rv-c-ed" id="rv-col-ed">
+    ${rvPhraseHtml()}
     <div data-rv-region="edhead">
     <h3>✏️ 최종 피드백 초안 <span class="rv-note" style="font-weight:400">· 마지막 저장 기준: ${esc(srcLab)}${dirty?' (이후 수정됨)':''}</span></h3>
     ${locked?`<div class="rv-msg err">🔒 잠긴 주차입니다. 저장·승인이 차단됩니다.</div>`:''}
