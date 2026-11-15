@@ -4558,8 +4558,8 @@ function mtParseLayout(rows,fname){
   const m=String(fname).match(/_(\d{4})(\d{2})(\d{2})/);
   if(!m)throw new Error('파일 이름에서 시험일을 못 읽음');
   const head=(rows[0]||[]).map(h=>String(h==null?'':h).trim());
-  const qc=head.includes('새번호')?head.indexOf('새번호'):head.indexOf('시험번호'),sc=head.indexOf('과목'),uc=head.indexOf('출처_단원'),oc=head.indexOf('출처');
-  if(qc<0||sc<0)throw new Error('새번호(시험번호)·과목 열이 없음');
+  const qc=['새번호','시험번호','번호'].map(c=>head.indexOf(c)).find(i=>i>=0)??-1,sc=head.indexOf('과목'),uc=head.indexOf('출처_단원'),oc=head.indexOf('출처');   // 3회 구성표는 「번호」
+  if(qc<0||sc<0)throw new Error('새번호(시험번호·번호)·과목 열이 없음');
   const q2s={},units={},schools={},bioSrc=new Set();
   rows.slice(1).forEach(r=>{
     const q=Number(r&&r[qc]);if(!q)return;
@@ -4579,7 +4579,7 @@ function mtParseLayout(rows,fname){
 // 문항구성표 시트 「유기_선별7문항」: 재출제 유기 문항의 주제와 처음 풀 때 정답률
 function mtParseReuse(rows){
   const head=(rows[0]||[]).map(h=>String(h==null?'':h).trim());
-  const qc=head.includes('새번호')?head.indexOf('새번호'):head.indexOf('시험번호'),tc=head.includes('주제')?head.indexOf('주제'):head.indexOf('단원'),rc=head.indexOf('정답률');
+  const qc=['새번호','시험번호','전과목 번호'].map(c=>head.indexOf(c)).find(i=>i>=0)??-1,tc=head.includes('주제')?head.indexOf('주제'):head.indexOf('단원'),rc=head.findIndex(h=>/정답률/.test(h));   // 3회 「유기_선별」은 「전과목 번호」·「당시 정답률(%)」
   if(qc<0||rc<0)throw new Error('새번호(시험번호)·정답률 열이 없음');
   const out={};
   rows.slice(1).forEach(r=>{const q=Number(r&&r[qc]),v=Number(r&&r[rc]);if(q&&Number.isFinite(v))out[q]={prev:v,topic:String((tc>=0&&r[tc])||'')};});
@@ -4621,7 +4621,7 @@ async function mtWalk(dir,path,out,depth,inAI){
     const p=path+'/'+name;
     const ai=inAI||/AI작업/.test(name);
     if(h.kind==='directory')await mtWalk(h,p,out,depth+1,ai);
-    else if(ai){if((/총평.*\.txt$/i.test(name)&&!/수정전|지침/.test(name))||(/문항구성표/.test(name)&&/\.xlsx$/i.test(name)))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평(수정 전 사본·작업 지침 제외)과 문항구성표만 읽는다
+    else if(ai){if((/총평.*\.txt$/i.test(name)&&!/수정전|지침/.test(name))||(/구성표/.test(name)&&/\.xlsx$/i.test(name)))out.push({name,path:p,handle:h});}   // AI작업 폴더에서는 총평(수정 전 사본·작업 지침 제외)과 (문항)구성표만 읽는다(3회부터 「…_구성표_…」)
     else if(/\.(xlsx|txt)$/i.test(name)||name==='전과목_과목구간.json'||name==='문항단원.json'||(/해설/.test(name)&&/\.pdf$/i.test(name)))out.push({name,path:p,handle:h});
   }
 }
@@ -4641,10 +4641,10 @@ async function mtScan(){
           try{sections={...sections,...mtParseSections(JSON.parse(await (await f.handle.getFile()).text()))};}catch(e){MT.issues.push(`전과목_과목구간.json: ${e.message} — 전과목은 총점만 씁니다`);}
         }else if(f.name==='문항단원.json'){
           try{units={...units,...JSON.parse(await (await f.handle.getFile()).text())};}catch(e){MT.issues.push(`문항단원.json: ${e.message}`);}
-        }else if(/문항구성표/.test(f.name)&&/\.xlsx$/i.test(f.name)){
+        }else if(/구성표/.test(f.name)&&/\.xlsx$/i.test(f.name)&&!/결과/.test(f.name)){
           try{
             const wb=window.XLSX.read(await (await f.handle.getFile()).arrayBuffer(),{type:'array'});
-            const ws=wb.Sheets['문항구성']||wb.Sheets[wb.SheetNames.find(n=>/^문항구성/.test(n))]||wb.Sheets[wb.SheetNames[0]];   // 1회 「문항구성」, 2회 「문항구성_60」
+            const ws=wb.Sheets['문항구성']||wb.Sheets[wb.SheetNames.find(n=>/^문항구성/.test(n))]||wb.Sheets['구성표']||wb.Sheets[wb.SheetNames[0]];   // 1회 「문항구성」, 2회 「문항구성_60」, 3회 「구성표」
             const lay=mtParseLayout(window.XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),f.name);
             if(layName[lay.date]&&layName[lay.date]>f.name)continue;   // 같은 시험의 구성표가 여럿이면 이름이 뒤인 것(_v2 등 새 판)을 쓴다
             layName[lay.date]=f.name;
@@ -4706,6 +4706,7 @@ async function mtScan(){
       }catch(e){MT.issues.push(`${pf.name}: ${e.message} — 단원 없이 씁니다`);}
     }
     MT.tests=Object.values(tests).sort((a,b)=>a.date.localeCompare(b.date));
+    MT.tests.filter(t=>t.subject==='전과목'&&!sections[t.date]).forEach(t=>MT.issues.push(`${mtMD(t.date)} 전과목 모의고사: 문항구성표를 못 읽어 과목별 구간을 나누지 못했습니다 — 과목별 점수 없이 총점만 씁니다`));
     Object.values(consults).forEach(a=>a.sort((x,y)=>y.date.localeCompare(x.date)));
     MT.consults=consults;MT.sections=sections;MT.units=units;MT.schools=schools;MT.noOrg=noOrg;MT.topics=topics;MT.reuse=reuse;MT.notes=notes;MT.exRanks=exRanks;MT.scannedAt=Date.now();MT.sum={};MT.sigs={};
   }catch(e){MT.issues.push(e.message);}
@@ -4947,6 +4948,7 @@ function mtSummaryText(name,submittedAt){
   MT_SUBS.forEach(s=>{if(noOrg&&s==='유기')return;L.push(...mtSubjectLines(s,out[s],recap,mtTierOf(name,cut,s)));});
   if(out.전과목.length)L.push('■ 전과목 모의고사 총점',`- ${out.전과목.map(e=>`${mtMD(e.date)} ${e.score}/${e.total} (${/유기 제외/.test(e.label)?`유기 제외 ${e.total}문항 기준, `:''}반 평균 ${e.mean}, ${e.rank}등/${e.n}명)`).join(' → ')}`);
   const lastAll=out.전과목[out.전과목.length-1],ex=lastAll&&MT.exRanks[lastAll.date],exRow=ex?mtFindRows(ex,name):[];
+  if(lastAll&&!MT.sections[lastAll.date])L.push(`- ⚠️ ${mtMD(lastAll.date)} 전과목 모의고사는 과목별 구간 자료가 없어 총점만 있습니다. 위 과목별 「최근 시험」은 그 전에 본 다른 시험입니다. 이번 전과목 모의고사의 과목별 점수·문항 수·틀린 문항은 말하지 마세요.`);
   if(exRow.length===1&&!noOrg)L.push(`- 유기화학 제외 ${ex.total}문항(${mtMD(ex.date)}): ${exRow[0].score}/${ex.total} (반 평균 ${ex.mean}, ${exRow[0].rank}등/${ex.n}명)`);
   return L.join('\n');
 }
