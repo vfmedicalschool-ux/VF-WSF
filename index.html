@@ -214,7 +214,7 @@ const STUDY_SUBS=["생물","화학","유기"],ALL_SUBS=["생물","화학","유�
 const SUB_ICON={생물:"🧬",화학:"⚗️",유기:"🔬",생활관리:"🌿"};
 const SUB_CLASS={생물:"bio",화학:"chem",유기:"org",생활관리:"life"};
 // ★ ENN_DATA(코칭 데이터)와 목록이 반드시 일치해야 한다.
-//   과거에 8w9·8w7·3w4·5w4가 목록에 없어 선택 자체가 불가능했고(박진성 케이스),
+//   과거에 8w9·8w7·3w4·5w4가 목록에 없어 선택 자체가 불가능했고(9월반 특수 케이스 학생),
 //   반대로 6w7·3w2는 목록에만 있고 코칭 데이터가 없어 코칭 블록이 통째로 비었다.
 const ENN_OPTIONS=[["","유형 선택"],["6w5","6w5 — 안정+분석 (1순위)"],["1w2","1w2 — 완벽+도움 (2순위)"],["7w8","7w8 — 즐거움+도전 (3순위)"],["7w6","7w6 — 즐거움+안정 (4순위)"],["6w7","6w7 — 안정+즐거움 (5순위)"],["4w5","4w5 — 개성+탐구"],["4w3","4w3 — 개성+성취"],["3w4","3w4 — 성취+개성"],["3w2","3w2 — 성취+도움"],["5w6","5w6 — 탐구+불안"],["5w4","5w4 — 탐구+개성"],["8w9","8w9 — 추진+평화"],["8w7","8w7 — 추진+즐거움"],["9w8","9w8 — 평화+추진"],["9w1","9w1 — 평화+완벽"],["1w9","1w9 — 완벽+평화"]];
 // ── 27학년도 VF 풀케어반 커리큘럼 (일정표 기준 — 약간의 변동 가능) ──
@@ -301,16 +301,19 @@ let STUDENT_PROFILE={};
 // 학생별 맥락 카드(2026-11-16): 7월 상담·통화 기록·승인 피드백 이력을 학생마다 요약한 것.
 // 프로필과 같은 강사 전용 문서(config/profiles)의 contexts 칸에 둔다. 소스·저장소에는 넣지 않는다.
 let STUDENT_CONTEXT={}, STUDENT_CONTEXT_AT='';
+// 학생 묶음 명단(9월 시작반 sepStart·특수 케이스 sepSpecial). 실명이라 같은 강사 전용 문서의 groups 칸에 둔다.
+let STUDENT_GROUPS={};
 async function loadProfiles(){
   try{
     const d=await fsdb.collection('config').doc('profiles').get();
     const x=d.exists?d.data():{};
     STUDENT_PROFILE = x.data||{};
     STUDENT_CONTEXT = x.contexts||{}; STUDENT_CONTEXT_AT = x.contextsAsof||'';
-  }catch(e){ STUDENT_PROFILE={}; STUDENT_CONTEXT={}; console.warn('프로필 로드 실패(권한 없음이면 정상):',e.code||e.message); }
+    STUDENT_GROUPS = x.groups||{};
+  }catch(e){ STUDENT_PROFILE={}; STUDENT_CONTEXT={}; STUDENT_GROUPS={}; console.warn('프로필 로드 실패(권한 없음이면 정상):',e.code||e.message); }
 }
 async function uploadProfiles(obj){
-  await fsdb.collection('config').doc('profiles').set({data:obj,contexts:STUDENT_CONTEXT||{},contextsAsof:STUDENT_CONTEXT_AT||'',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  await fsdb.collection('config').doc('profiles').set({data:obj,contexts:STUDENT_CONTEXT||{},contextsAsof:STUDENT_CONTEXT_AT||'',groups:STUDENT_GROUPS||{},updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
   STUDENT_PROFILE=obj;
 }
 async function uploadContexts(obj,asof){
@@ -318,6 +321,12 @@ async function uploadContexts(obj,asof){
   const f={contexts:obj,contextsAsof:asof||'',contextsAt:firebase.firestore.FieldValue.serverTimestamp()};
   if((await ref.get()).exists) await ref.update(f); else await ref.set({data:{},...f});
   STUDENT_CONTEXT=obj; STUDENT_CONTEXT_AT=asof||'';
+}
+async function uploadGroups(g){
+  const ref=fsdb.collection('config').doc('profiles');
+  const f={groups:g,groupsAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if((await ref.get()).exists) await ref.update(f); else await ref.set({data:{},...f});
+  STUDENT_GROUPS=g;
 }
 
 const ENN_DATA={
@@ -334,7 +343,7 @@ const ENN_DATA={
   "8w7":{r:"추진+즐거움. 합격 케이스",c:"추진력·실행력 인정. 명령형 금지—선택지+결과 구조로: '이렇게 하면 이렇게 되고 저렇게 하면 이렇게 된다. 판단은 학생 몫이에요'. 방향만 잡아주면 빠르게 실행—방향 질문에 즉각 답하되 이유 포함. 에너지 과집중→한쪽 방치 패턴 모니터링. 성과 수치로 확인시켜 줌",a:"'이렇게 하세요'(이유 없는 명령). '다들 이렇게 하니까'. 막연한 안심. '걱정하지 않아도 돼요'"},
   "8w9":{r:"추진+평화. 8w9",c:"명령 금지—선택지+결과+타임라인 제시. 직접 경험 전까지 납득 안 되는 8w9—구조적 스펙 문제는 수치로 명확히. 신뢰 관계 기반 코칭: '잘 되길 바라기 때문에 말하는 거야'. 이의 제기 후 철회하면 내부 잠복 여부 확인",a:"맹목적 신뢰 요청. 추상적 경고(수치로 보여줘야). 갈등 회피 패턴 간과"},
   "9w8":{r:"평화+추진. 100%",c:"주3회 운동 절대유지. 회피 행동 직접 명명: '이번주도 [단원명]이 보완점—9번 유형이 어려운 걸 자동으로 미루는 패턴이에요, 루틴 첫 시간에 강제 배치해봐요'. 피드백 실행 추적—지난주 제안 행동이 이번주에 반영됐는지 반드시 확인. 루틴 도구(체크리스트·타이머) 기능 여부 추적. 감정 표현 나오면 즉각 반응",a:"격려만 반복. 회피 고착 방치. 다짐 문구 고착을 성장 신호로 오독. 실행 추적 없이 새 제안"},
-  // 6w7 — 6번(안정 추구) + 7번 날개(즐거움). 김영찬·탁채원 (9월반).
+  // 6w7 — 6번(안정 추구) + 7번 날개(즐거움). 9월반 학생 2명.
   //   6w5의 "방향 확인" 축과 7w6의 "진도보다 복습" 축을 함께 쓴다.
   "6w7":{r:"안정+즐거움. 9월반",c:"'지금 방향이 맞다'는 확인을 반드시 포함—피드백 첫 문장은 잘하고 있는 부분 확인으로 시작. 불안을 회피하지 말고 데이터로 다루게 유도(정답률·오답 기록을 피하지 않고 보게 하기). 7번 날개 때문에 진도를 앞서 나가려는 충동이 있음—'진도보다 복습이 먼저'를 짚어주기. 흥미가 떨어진 과목을 미루는 패턴 주의, 지루한 구간은 짧게 쪼개서 넘기도록 제안. 루틴이 깨져도 자책 말고 복귀 메시지 필수. 추상적 조언 대신 검증 가능한 구체 행동으로",a:"등수·순위로 동기부여. 비교 불안 자극. '열심히 하면 됩니다'(추상적 조언). 지적만 하고 방향 확인 없음. '진도 열심히 나가세요'. 재미없어도 참으라는 식의 인내 요구"},
   // 3w2 — 3번(성취) + 2번 날개(도움·관계). 드롭다운에만 있고 데이터가 없어 추가.
@@ -3369,14 +3378,13 @@ const SOURCE_GATE=`
 
 `;
 // ══════════════════════════════════════════════════════════════
-// 9월 시작반 (7명) — 7~8월 기록이 없는 신규 학생.
-// 박진성은 7월에 상담만 받고 9월부터 합류한 특수 케이스라
+// 9월 시작반 — 7~8월 기록이 없는 신규 학생.
+// 특수 케이스(7월에 상담만 받고 9월부터 합류)는
 // 상담 프로필을 쓰지 않고 학생이 쓴 내용만으로 피드백한다.
+// 명단은 실명이라 소스에 두지 않고 강사 전용 문서(config/profiles)의 groups 칸에 둔다(2026-11-16).
 // ══════════════════════════════════════════════════════════════
-const SEP_START=["김영찬","탁채원","김민서","김수아","황하연","공인준","박진성"];
-const SEP_SPECIAL=["박진성"];
-function isSepStart(n){return SEP_START.includes(String(n||"").trim());}
-function isSepSpecial(n){return SEP_SPECIAL.includes(String(n||"").trim());}
+function isSepStart(n){return (STUDENT_GROUPS.sepStart||[]).includes(String(n||"").trim());}
+function isSepSpecial(n){return (STUDENT_GROUPS.sepSpecial||[]).includes(String(n||"").trim());}
 function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRecord2,teacherNote,submittedAt}){
   const mtBlock=mtPromptBlock(name,`${name}_${month}-${week}`,mtWhen({month,week,submittedAt})),noOrg=mtIsNoOrg(name);
   // ★ 홍쌤이 생성 전에 직접 적어둔 지시 — 무엇보다 우선
@@ -3391,7 +3399,7 @@ function buildPrompt({name,month,week,trait,school,subjects,nw,prevRecord,prevRe
   // ── 이번 주 승인본에서 자동 학습한 홍쌤 패턴 ──
   let learnBlock="";
   try{
-    // 특수 케이스(박진성)는 다른 학생 공통 지침을 받지 않는다 — 학생이 쓴 내용만.
+    // 특수 케이스 학생은 다른 학생 공통 지침을 받지 않는다 — 학생이 쓴 내용만.
     // 단 "반복 삭제 문장"은 금지 목록이므로 그대로 유지한다.
     const LP=(typeof weeklyPatterns==='function')?weeklyPatterns(month,week,`${name}_${month}-${week}`):{n:0,themes:[],removed:[]};
     if(isSepSpecial(name))LP.themes=[];
@@ -5341,7 +5349,7 @@ function buildInstructor(){
       <div style="font-size:12px;font-weight:600;color:${pCnt?'#1a7a3a':'#c0392b'}">🔒 학생 상담 프로필 &nbsp;
         ${pCnt?`<span class="dot dot-on"></span><span style="color:#1a7a3a">${pCnt}명 로드됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b">없음 — 업로드 필요</span>`}
         ${eCnt?`<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 에니어그램 ${eCnt}명</span>`:''}
-        ${(()=>{const c=Object.keys(STUDENT_CONTEXT||{}).length;return `<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 맥락 카드 ${c?c+'명'+(STUDENT_CONTEXT_AT?' ('+esc(STUDENT_CONTEXT_AT)+' 기준)':''):'없음'}</span>`;})()}
+        ${(()=>{const c=Object.keys(STUDENT_CONTEXT||{}).length;const g=(STUDENT_GROUPS.sepStart||[]).length;return `<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 맥락 카드 ${c?c+'명'+(STUDENT_CONTEXT_AT?' ('+esc(STUDENT_CONTEXT_AT)+' 기준)':''):'없음'} · 9월 시작반 명단 ${g?g+'명':'<b style="color:#ff3b30">없음</b>'}</span>`;})()}
       </div>
       <label class="btn-ghost btn-sm" style="cursor:pointer;white-space:nowrap">📁 JSON 업로드
         <input type="file" accept="application/json,.json" style="display:none" onchange="handleProfileFile(this)">
@@ -5542,6 +5550,13 @@ async function handleProfileFile(input){
   const f=input.files&&input.files[0]; if(!f)return;
   try{
     const j=JSON.parse(await f.text());
+    if(j.groups&&!j.profiles&&!j.contexts){
+      const g=j.groups;
+      if(typeof g!=='object'||!Array.isArray(g.sepStart)||!Array.isArray(g.sepSpecial))throw new Error('묶음 명단 형식이 올바르지 않습니다(sepStart·sepSpecial 목록 필요)');
+      await uploadGroups({sepStart:g.sepStart.map(x=>String(x).trim()).filter(Boolean),sepSpecial:g.sepSpecial.map(x=>String(x).trim()).filter(Boolean)});
+      alert(`묶음 명단 업로드 완료\n9월 시작반 ${g.sepStart.length}명 · 특수 케이스 ${g.sepSpecial.length}명`);
+      input.value=''; render(); return;
+    }
     if(j.contexts&&!j.profiles){
       if(typeof j.contexts!=='object'||!Object.keys(j.contexts).length)throw new Error('맥락 카드 형식이 올바르지 않습니다');
       await uploadContexts(j.contexts,j.asof||'');
@@ -5885,7 +5900,7 @@ function copyPhrase(i){
 // ══════════════════════════════════════════════════════════════
 // ※ 교재·문제집 이름만 넣는다. "모의고사·타임어택·박인규" 같은 일반 조언 어휘를
 //   넣으면 오탐이 84%까지 올라가 경고가 무시된다. 교재만 쓰면 43%, 건당 1.5개.
-//   (8월 2주차 실데이터 157건으로 검증. 홍쌤이 신고한 정주희 "캠벨"·이설희 "1500제" 정확히 포착)
+//   (8월 2주차 실데이터 157건으로 검증. 홍쌤이 신고한 학생 A "캠벨"·학생 B "1500제" 정확히 포착)
 const HALLU_BOOKS=["1500제","2000제","스미스","캠벨","약사랑","퀴즐렛","기출올인원","기출N적중","MDP"];
 function _hnorm(t){return String(t||'').toLowerCase().replace(/\s+/g,'').replace(/테스트/g,'test');}
 function _studentText(d){
@@ -5923,8 +5938,8 @@ function hallucinationCheck(d){
 // 인용 문장 검증 — "~라고 했는데요" 처럼 학생 발언을 인용하는 문장이
 // 이번 주 제출에 근거가 있는지 문장 단위로 대조한다.
 // 8월 4주차 실데이터 36명으로 검증: 검출 25%·건당 1.2문장,
-// 홍쌤이 신고한 문주아 3건("식생분진 질문","밤 9시 30분","output 걱정")과
-// 진민주 1건("러닝 주 4-5회")을 정확히 포착.
+// 홍쌤이 신고한 학생 C 3건과
+// 학생 D 1건을 정확히 포착.
 // ══════════════════════════════════════════════════════════════
 const QUOTE_RX=/했는데|했다고|하셨는데|하셨죠|했네요|했었는데|주셨|라고 했|고 하셨|질문 주/;
 const TAIL_RX=/(어요|예요|거든|습니|하고|해서|하니|하면|되고|이고|지만|는데|니까|세요|겠다|았다|었다|린다|한다)$/;
