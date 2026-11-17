@@ -7610,6 +7610,18 @@ setInterval(()=>{if(R.on&&R.key)rvActTick();},15000);
   .d6 .d6-work>.rv-col{position:static;max-height:none}
   .d6 .d6-work .rv-ed{min-height:420px}
 }
+/* 표현 추천(2026-11-17): 이 학생 글에 맞춘 자동 추천·한 칸 검색 */
+.d6 .d6-tools{border-top:none;margin-top:0;padding-top:0;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #d2d2d7}
+.d6 .d6-work .rv-ed{min-height:max(280px,calc(100vh - 420px))}
+.d6-ps{width:100%;font-size:12.5px;padding:7px 10px;border:1px solid #c9d6f5;border-radius:9px;margin:2px 0 7px;background:#fff}
+.d6-sug-h{font-size:11.5px;font-weight:800;color:#0059b3;margin:2px 0 5px}
+.d6-sugs{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.d6-recb em{font-style:normal;font-size:10px;font-weight:700;color:#5e3bd1;background:#efeafe;border-radius:5px;padding:1px 6px;white-space:nowrap;align-self:center}
+.d6-recb kbd{font:inherit;font-size:10px;color:#86868b;border:1px solid #d2d2d7;border-radius:4px;padding:0 4px;align-self:center}
+.d6-cats-h{font-size:11.5px;color:#0059b3;font-weight:700;margin:2px 0 4px;cursor:pointer}
+.d6 .d6-work>.rv-col{overscroll-behavior:contain}
+.d6-recb.used{opacity:.55}.d6-recb.used em{background:#e8f6ec;color:#24702e}
+@media(max-width:800px){.d6 .d6-work .rv-ed{min-height:420px}}
 </style>
 <script>let _INS_PARTS=null;</script>
 <script>
@@ -7914,7 +7926,7 @@ document.addEventListener('keydown',e=>{
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const el=document.getElementById('d6-q');if(el){el.focus();el.select();}}
 });
 // ── 8. 나란히 작성(2026-11-17) ──
-// 초안을 오른쪽 맨 위로 올리고, 자주 쓰는 표현·예전 문구 찾기는 초안 아래 「작성 도우미」로 옮긴다.
+// 초안 칸 맨 위에 「작성 도우미」(자주 쓰는 표현·예전 문구 찾기)를 두고 바로 아래 초안을 둔다(11/17 대표 요청으로 위로 옮김).
 // 「작성 화면 넓게」를 켜면 제출 현황 표와 왼쪽 명단을 숨겨 학생 정보|초안 두 칸만 쓴다(이 브라우저에 기억).
 try{D6.focus=localStorage.getItem('_vf_d6focus')==='1';}catch(e){D6.focus=false;}
 function d6NavH(){const n=document.querySelector('nav.nav');return n?Math.round(n.getBoundingClientRect().height):0;}
@@ -7931,8 +7943,8 @@ rvColEd=function(){
   const ph=rvPhraseHtml();let h=_d6ColEd();
   const i=h.indexOf(ph);if(i>=0)h=h.slice(0,i)+h.slice(i+ph.length);
   const tools=`<div class="d6-tools"><div class="d6-tools-h">✍️ 작성 도우미</div>${d6PhraseRecHtml()}${i>=0?ph:''}</div>`;
-  const j=h.lastIndexOf('<div data-rv-region="chk"');
-  return j>=0?h.slice(0,j)+tools+h.slice(j):h+tools;
+  const j=h.indexOf('<div data-rv-region="edhead">');
+  return j>=0?h.slice(0,j)+tools+h.slice(j):tools+h;
 };
 const _d7Build=buildReview;
 buildReview=function(){
@@ -7947,6 +7959,98 @@ buildReview=function(){
 };
 const _d7Open=d6OpenKey;
 d6OpenKey=async function(key){await _d7Open(key);setTimeout(d6ScrollWork,0);};
+// ── 9. 표현 추천(2026-11-17) ──
+// 분류를 하나씩 열어 보지 않아도 되게: ① 이 학생의 이번 주 글에서 나온 주제로 문장을 바로 추천 ② 한 칸 검색으로 전체 표현을 거른다.
+// 추천 문장은 기존과 같이 승인된 피드백에서 2명 이상에게 쓴 문장만 쓴다. 이미 초안에 들어간 문장은 다시 추천하지 않는다.
+const D6_TRIG={
+  sleep:/수면|잠[을이은 ]|잠$|취침|기상|늦잠|피곤|피로|컨디션|졸[려음았]|식곤/,
+  exercise:/운동|헬스|러닝|산책|걷기|스트레칭|체력/,
+  review:/회독|복습|오답|반복|암기|까먹|잊어/,
+  test:/TEST|테스트|모의고사|실전|시간 ?부족|시간 ?배분|시험/i,
+  mind:/불안|조급|걱정|멘탈|우울|스트레스|자책|힘들|지치|지쳐|번아웃|슬럼프/,
+  plan:/계획|다음 ?주|일정|우선순위|어떻게 해야|방향/
+};
+D6.ps=D6.ps||'';
+function d6AllPhrases(){
+  // 분류에 안 맞는 문장까지 포함한 전체 표현(검색용). d6PhraseBank와 같은 기준·같은 캐시 신호를 쓴다.
+  const ap=(S.subs||[]).filter(s=>s.data&&s.data.feedbackApproved&&s.data.generatedFeedback);
+  const sig=ap.length+'|'+(S.subs||[]).length;
+  if(D6.allCache&&D6.allCache.sig===sig)return D6.allCache.list;
+  const names=[...new Set([...(S.roster||[]),...(S.subs||[]).map(s=>s.data&&s.data.name)].filter(n=>n&&n.length>=2))];
+  const map=new Map();
+  ap.forEach(s=>{
+    const o=rvWeekOrd(String(s.data.month),String(s.data.week));
+    _sents(s.data.generatedFeedback).forEach(t=>{
+      if(/\d/.test(t)||t.length>150||t.includes(RV_DECISION_MARK))return;
+      if(names.some(n=>t.includes(n)))return;
+      const k=_key(t);const g=map.get(k);
+      if(g){g.st.add(s.data.name);if(o>=g.o){g.o=o;g.text=t;}}
+      else map.set(k,{text:t,st:new Set([s.data.name]),o});
+    });
+  });
+  const list=[...map.values()].filter(g=>g.st.size>=2).sort((a,b)=>b.st.size-a.st.size||b.o-a.o).map(g=>({text:g.text,n:g.st.size}));
+  D6.allCache={sig,list};
+  return list;
+}
+function d6StudentText(d){
+  const out=[];const walk=v=>{if(v==null)return;if(typeof v==='string'){out.push(v);return;}if(typeof v==='object')Object.values(v).forEach(walk);};
+  walk(d&&d.subjects);walk(d&&d.nw);
+  return out.join('\n');
+}
+function d6Suggest(){
+  const d=S.sel&&S.sel.data;if(!d)return [];
+  const txt=d6StudentText(d),bank=d6PhraseBank(),ed=String(R.editor||'');
+  const used=x=>ed.includes(x.text);
+  const hits=Object.entries(D6_TRIG).map(([k,rx])=>{const g=new RegExp(rx.source,rx.flags.includes('g')?rx.flags:rx.flags+'g');const m=txt.match(g)||[];return {k,c:m.length,w:m[0]};}).filter(h=>h.c>0).sort((a,b)=>b.c-a.c);
+  const out=[],seen=new Set();
+  const add=(x,why)=>{if(!x||used(x)||seen.has(x.text)||out.length>=5)return;seen.add(x.text);out.push({...x,why});};
+  hits.forEach(h=>(bank[h.k]||[]).filter(x=>!used(x)).slice(0,2).forEach(x=>add(x,`‘${String(h.w).trim()}’ 언급`)));
+  (bank.praise||[]).filter(x=>!used(x)).slice(0,1).forEach(x=>add(x,'칭찬'));
+  (bank.close||[]).filter(x=>!used(x)).slice(0,1).forEach(x=>add(x,'마무리'));
+  return out;
+}
+function d6InsText(t){
+  const el=document.getElementById('rv-editor');if(!el||!t)return;
+  const v=el.value,a=el.selectionStart!=null?el.selectionStart:v.length,b=el.selectionEnd!=null?el.selectionEnd:a;
+  const pre=v.slice(0,a),post=v.slice(b);
+  const sep=pre&&!/[\s\n]$/.test(pre)?' ':'';
+  const ins=sep+t+(post&&!/^[\s\n]/.test(post)?' ':'');
+  R.undo.push(R.editor);
+  el.value=pre+ins+post;
+  const c=(pre+ins).length;el.focus();el.setSelectionRange(c,c);
+  rvOnInput(el);
+}
+function d6InsR(i){const x=(D6.recList||[])[i];if(x)d6InsText(x.text);}
+function d6PsKey(ev){
+  if(ev.key==='Escape'){D6.ps='';ev.target.value='';render();}
+  else if(ev.key==='Enter'){ev.preventDefault();const x=(D6.recList||[])[0];if(x&&D6.ps.trim())d6InsText(x.text);}
+}
+d6PhraseRecHtml=function(){
+  const bank=d6PhraseBank(),q=String(D6.ps||'').trim();
+  const ed=String(R.editor||'');const recs=[];const btn=(x,tag)=>{const i=recs.push(x)-1;const u=ed.includes(x.text);return `<button class="d6-recb${u?' used':''}" onmousedown="event.preventDefault()" onclick="d6InsR(${i})"><span>${esc(x.text)}</span>${u?'<em>✓ 넣음</em>':tag?`<em>${esc(tag)}</em>`:''}<small>${x.n}명</small></button>`;};
+  let body='';
+  if(q){
+    const words=q.split(/\s+/).filter(Boolean);
+    const found=d6AllPhrases().filter(x=>words.every(w=>x.text.includes(w))).slice(0,12);
+    body=found.length?`<div class="d6-sug-h">🔎 「${esc(q)}」 ${found.length}건 <span class="rv-note">· Enter=첫 문장 넣기 · Esc=지우기</span></div><div class="d6-sugs d6-recs">${found.map(x=>btn(x,'')).join('')}</div>`
+      :`<div class="rv-note" style="margin:4px 0 8px">「${esc(q)}」가 들어간 자주 쓰는 표현이 없습니다. 아래 「예전에 쓴 문구 찾기」로 한 번만 쓴 문장까지 찾아보세요.</div>`;
+  }else{
+    const sug=d6Suggest();
+    body=`<div class="d6-sug-h">✨ 이번 주 글에 맞춘 추천 <span class="rv-note">· 학생이 쓴 내용의 주제로 골랐습니다</span></div>`+
+      (sug.length?`<div class="d6-sugs">${sug.map(x=>btn(x,x.why)).join('')}</div>`:'<div class="rv-note" style="margin:0 0 8px">추천할 문장이 없습니다(이미 초안에 들어갔거나, 2명 이상에게 쓴 문장이 아직 없음).</div>');
+    const cat=D6.phraseCat,list=cat?(bank[cat]||[]):[];
+    body+=`<details ${D6.open.cats?'open':''} ontoggle="D6.open.cats=this.open"><summary class="d6-cats-h">분류별로 더 보기</summary><div class="d6-cats">${D6_CATS.map(([k,ic,lab])=>`<button class="d6-cat${cat===k?' on':''}" onmousedown="event.preventDefault()" onclick="D6.phraseCat=D6.phraseCat==='${k}'?null:'${k}';D6.catAt=Date.now();render()">${ic} ${lab}<small>${(bank[k]||[]).length}</small></button>`).join('')}</div>`+
+      (cat?(list.length?`<div class="d6-recs${Date.now()-(D6.catAt||0)<400?' anim':''}">${list.map(x=>btn(x,'')).join('')}</div>`:'<div class="rv-note" style="margin-top:6px">이 분류에서 2명 이상에게 쓴 문장이 아직 없습니다.</div>'):'')+'</details>';
+  }
+  D6.recList=recs;
+  return `<div class="d6-rec">
+    <div class="d6-rec-head">💬 자주 쓰는 표현 <span class="rv-note">승인 피드백에서 2명 이상에게 쓴 문장 · 누르면 커서 자리에 들어갑니다</span></div>
+    <div data-rv-region="phrsq"><input id="d6-ps" class="d6-ps" value="${esc(D6.ps||'')}" placeholder="🔎 표현 검색 (예: 수면 / 오답 / 화이팅)" oninput="D6.ps=this.value;render()" onkeydown="d6PsKey(event)"></div>
+    <div data-rv-region="phraserec">${body}</div>
+  </div>`;
+};
+const _d9Open=d6OpenKey;
+d6OpenKey=async function(key){await _d9Open(key);const c=document.getElementById('rv-col-ed');if(c)c.scrollTop=0;};
 </script>
 <!-- ▲ 선생님 대시보드 v6 -->
 </body>
