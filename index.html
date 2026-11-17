@@ -7595,6 +7595,21 @@ setInterval(()=>{if(R.on&&R.key)rvActTick();},15000);
   .d6-qgrid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
 }
 @media(prefers-reduced-motion:reduce){.d6 *{animation:none!important;transition:none!important}}
+/* 나란히 작성(2026-11-17): 학생 정보와 초안을 옆에 두고 각각 스크롤 */
+.d6 .d6-work{grid-template-columns:minmax(280px,1fr) minmax(360px,1.25fr)}
+.d6 .d6-work>.rv-col{position:sticky;top:var(--d6-top,57px);align-self:start;max-height:calc(100vh - var(--d6-top,57px) - 8px);overflow-y:auto}
+.d6 .d6-left{top:var(--d6-top,57px);max-height:calc(100vh - var(--d6-top,57px) - 8px)}
+.d6 .d6-work .rv-ed{min-height:max(300px,calc(100vh - 390px))}
+.d6-tools{border-top:1px dashed #d2d2d7;margin-top:12px;padding-top:10px}
+.d6-tools-h{font-size:12px;font-weight:800;color:#6e6e73;margin-bottom:6px}
+.d6-focus [data-rv-region="hm"],.d6-focus .d6-left{display:none}
+.d6-focus .d6-layout{grid-template-columns:1fr!important}
+@media(max-width:1180px){.d6 .d6-work{grid-template-columns:minmax(250px,1fr) minmax(330px,1.2fr)}.d6 .d6-left{max-height:none}}
+@media(max-width:800px){
+  .d6 .d6-work{grid-template-columns:1fr}
+  .d6 .d6-work>.rv-col{position:static;max-height:none}
+  .d6 .d6-work .rv-ed{min-height:420px}
+}
 </style>
 <script>let _INS_PARTS=null;</script>
 <script>
@@ -7898,6 +7913,40 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&D6.drawer){D6.drawer=false;render();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const el=document.getElementById('d6-q');if(el){el.focus();el.select();}}
 });
+// ── 8. 나란히 작성(2026-11-17) ──
+// 초안을 오른쪽 맨 위로 올리고, 자주 쓰는 표현·예전 문구 찾기는 초안 아래 「작성 도우미」로 옮긴다.
+// 「작성 화면 넓게」를 켜면 제출 현황 표와 왼쪽 명단을 숨겨 학생 정보|초안 두 칸만 쓴다(이 브라우저에 기억).
+try{D6.focus=localStorage.getItem('_vf_d6focus')==='1';}catch(e){D6.focus=false;}
+function d6NavH(){const n=document.querySelector('nav.nav');return n?Math.round(n.getBoundingClientRect().height):0;}
+function d6ScrollWork(){
+  const h=document.querySelector('.d6 .rv-head');if(!h)return;
+  const nav=d6NavH(),t=h.getBoundingClientRect().top;
+  if(t<nav||t>window.innerHeight*0.35)window.scrollTo({top:Math.max(0,window.scrollY+t-nav-6)});
+}
+function d6SetFocus(on){
+  D6.focus=!!on;try{localStorage.setItem('_vf_d6focus',on?'1':'0');}catch(e){}
+  render();setTimeout(d6ScrollWork,0);
+}
+rvColEd=function(){
+  const ph=rvPhraseHtml();let h=_d6ColEd();
+  const i=h.indexOf(ph);if(i>=0)h=h.slice(0,i)+h.slice(i+ph.length);
+  const tools=`<div class="d6-tools"><div class="d6-tools-h">✍️ 작성 도우미</div>${d6PhraseRecHtml()}${i>=0?ph:''}</div>`;
+  const j=h.lastIndexOf('<div data-rv-region="chk"');
+  return j>=0?h.slice(0,j)+tools+h.slice(j):h+tools;
+};
+const _d7Build=buildReview;
+buildReview=function(){
+  try{document.documentElement.style.setProperty('--d6-top',(d6NavH()+8)+'px');}catch(e){}
+  let h=_d7Build();
+  if(R.key&&rvSub(R.key)){
+    const btn=`<button class="rv-btn sm${D6.focus?' pri':''}" onclick="d6SetFocus(${!D6.focus})" title="${D6.focus?'제출 현황 표와 왼쪽 명단을 다시 보여 줍니다':'제출 현황 표와 왼쪽 명단을 숨기고 학생 정보와 초안만 나란히 크게 봅니다'}">${D6.focus?'↩ 명단·현황 다시 보기':'↔ 작성 화면 넓게'}</button>`;
+    h=h.replace('<button class="rv-btn sm" onclick="rvGo(-1)">',btn+'<button class="rv-btn sm" onclick="rvGo(-1)">');
+    if(D6.focus)h=h.replace('<div class="rv d6">','<div class="rv d6 d6-focus">');
+  }
+  return h;
+};
+const _d7Open=d6OpenKey;
+d6OpenKey=async function(key){await _d7Open(key);setTimeout(d6ScrollWork,0);};
 </script>
 <!-- ▲ 선생님 대시보드 v6 -->
 </body>
