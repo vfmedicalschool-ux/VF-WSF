@@ -303,13 +303,15 @@ let STUDENT_PROFILE={};
 let STUDENT_CONTEXT={}, STUDENT_CONTEXT_AT='';
 // 학생 묶음 명단(9월 시작반 sepStart·특수 케이스 sepSpecial). 실명이라 같은 강사 전용 문서의 groups 칸에 둔다.
 let STUDENT_GROUPS={};
+// 학생 인적사항 표(2026-11-17): 이름→{gpa,toeic,age,school,note}. 같은 강사 전용 문서의 info 칸에 둔다. 소스에는 넣지 않는다.
+let STUDENT_INFO={}, STUDENT_INFO_AT='';
 // 인증 세대값(2026-11-17): 로그인 상태가 바뀔 때마다 1씩 올린다.
 // 강사 전용 값을 비동기로 받아 적용하기 직전에, 요청을 시작한 세대와 지금 세대가 같고 지금도 강사 계정인지 다시 확인한다.
 // (로그아웃·학생 계정 전환 뒤에 늦게 도착한 응답이 강사 전용 상태를 다시 채우지 않게 하기 위함)
 let _authGen=0;
 function teacherStill(gen){const u=auth.currentUser;return gen===_authGen&&!!u&&sameEmail(u.email,TEACHER_EMAIL);}
 function clearTeacherOnly(){
-  STUDENT_PROFILE={}; STUDENT_CONTEXT={}; STUDENT_CONTEXT_AT=''; STUDENT_GROUPS={};
+  STUDENT_PROFILE={}; STUDENT_CONTEXT={}; STUDENT_CONTEXT_AT=''; STUDENT_GROUPS={}; STUDENT_INFO={}; STUDENT_INFO_AT='';
 }
 async function loadProfiles(gen){
   try{
@@ -319,6 +321,7 @@ async function loadProfiles(gen){
     STUDENT_PROFILE = x.data||{};
     STUDENT_CONTEXT = x.contexts||{}; STUDENT_CONTEXT_AT = x.contextsAsof||'';
     STUDENT_GROUPS = x.groups||{};
+    STUDENT_INFO = x.info||{}; STUDENT_INFO_AT = x.infoAsof||'';
   }catch(e){ clearTeacherOnly(); console.warn('프로필 로드 실패(권한 없음이면 정상):',e.code||e.message); }
 }
 // config/profiles 한 칸만 바꾸는 공통 저장(2026-11-17).
@@ -341,6 +344,11 @@ async function uploadContexts(obj,asof){
   const gen=_authGen;
   await saveProfilesFields({contexts:obj,contextsAsof:asof||'',contextsAt:firebase.firestore.FieldValue.serverTimestamp()});
   if(teacherStill(gen)){ STUDENT_CONTEXT=obj; STUDENT_CONTEXT_AT=asof||''; }
+}
+async function uploadInfo(obj,asof){
+  const gen=_authGen;
+  await saveProfilesFields({info:obj,infoAsof:asof||'',infoAt:firebase.firestore.FieldValue.serverTimestamp()});
+  if(teacherStill(gen)){ STUDENT_INFO=obj; STUDENT_INFO_AT=asof||''; }
 }
 async function uploadGroups(g){
   const gen=_authGen;
@@ -5387,7 +5395,7 @@ function buildInstructor(){
       <div style="font-size:12px;font-weight:600;color:${pCnt?'#1a7a3a':'#c0392b'}">🔒 학생 상담 프로필 &nbsp;
         ${pCnt?`<span class="dot dot-on"></span><span style="color:#1a7a3a">${pCnt}명 로드됨</span>`:`<span class="dot dot-off"></span><span style="color:#c0392b">없음 — 업로드 필요</span>`}
         ${eCnt?`<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 에니어그램 ${eCnt}명</span>`:''}
-        ${(()=>{const c=Object.keys(STUDENT_CONTEXT||{}).length;const g=(STUDENT_GROUPS.sepStart||[]).length;return `<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 맥락 카드 ${c?c+'명'+(STUDENT_CONTEXT_AT?' ('+esc(STUDENT_CONTEXT_AT)+' 기준)':''):'없음'} · 9월 시작반 명단 ${g?g+'명':'<b style="color:#ff3b30">없음</b>'}</span>`;})()}
+        ${(()=>{const c=Object.keys(STUDENT_CONTEXT||{}).length;const g=(STUDENT_GROUPS.sepStart||[]).length;return `<span style="color:#86868b;font-weight:400;font-size:11px;margin-left:6px">· 맥락 카드 ${c?c+'명'+(STUDENT_CONTEXT_AT?' ('+esc(STUDENT_CONTEXT_AT)+' 기준)':''):'없음'} · 인적사항 ${Object.keys(STUDENT_INFO||{}).length?Object.keys(STUDENT_INFO).length+'명':'없음'} · 9월 시작반 명단 ${g?g+'명':'<b style="color:#ff3b30">없음</b>'}</span>`;})()}
       </div>
       <label class="btn-ghost btn-sm" style="cursor:pointer;white-space:nowrap">📁 JSON 업로드
         <input type="file" accept="application/json,.json" style="display:none" onchange="handleProfileFile(this)">
@@ -5469,7 +5477,7 @@ function buildInstructor(){
       <button onclick="" style="background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 15px;border-radius:9px;font-size:12px">🔴 실시간 연결</button>
     </div>
   </div>
-  ${(()=>{const _l=(S._rawSubs||[]).filter(s=>s.data.originalFeedback||('teacherNote' in s.data));const n=_l.length;const _na=_l.filter(s=>s.data.originalFeedback).length,_nn=_l.filter(s=>'teacherNote' in s.data).length;return n?`<div class="card" style="border-color:#f3b4b4;background:#fff7f7"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-size:12px;line-height:1.6"><b style="color:#c0392b">🔐 학생 문서 ${n}건에 선생님용 내용이 남아 있습니다 (AI 원본 ${_na}건 · 생성 전 메모 ${_nn}건)</b><br><span style="color:#86868b">학생 브라우저로 내려갈 수 있는 상태입니다. 선생님 전용 저장소로 옮기세요 (백업 파일을 먼저 내려받습니다).</span></div><button class="btn-blue btn-sm" onclick="migrateAiOriginals()" style="white-space:nowrap">비공개로 옮기기</button></div></div>`:'';})()}${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${learnCard}${styleCardHtml()}${mtFolderCard()}${tabBar}${listHTML}${detailHTML}
+  ${(()=>{const _l=(S._rawSubs||[]).filter(s=>s.data.originalFeedback||('teacherNote' in s.data));const n=_l.length;const _na=_l.filter(s=>s.data.originalFeedback).length,_nn=_l.filter(s=>'teacherNote' in s.data).length;return n?`<div class="card" style="border-color:#f3b4b4;background:#fff7f7"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-size:12px;line-height:1.6"><b style="color:#c0392b">🔐 학생 문서 ${n}건에 선생님용 내용이 남아 있습니다 (AI 원본 ${_na}건 · 생성 전 메모 ${_nn}건)</b><br><span style="color:#86868b">학생 브라우저로 내려갈 수 있는 상태입니다. 선생님 전용 저장소로 옮기세요 (백업 파일을 먼저 내려받습니다).</span></div><button class="btn-blue btn-sm" onclick="migrateAiOriginals()" style="white-space:nowrap">비공개로 옮기기</button></div></div>`:'';})()}${(_INS_PARTS={api:apiSection,profile:profileSection,lock:lockSection,roster:rosterSection,learn:learnCard},'')}${apiSection}${profileSection}${lockSection}${rosterSection}${absentCard}${learnCard}${styleCardHtml()}${mtFolderCard()}${tabBar}${listHTML}${detailHTML}
   </div>`;
 }
 
@@ -5591,7 +5599,7 @@ async function handleProfileFile(input){
     // 형식 검사(2026-11-17): 프로필 전용 / 맥락 카드 전용 / 묶음 명단 전용만 받는다. 섞인 파일은 저장 전에 멈춘다.
     const _isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
     if(!_isObj(j))throw new Error('JSON 최상위가 객체가 아닙니다');
-    const _kinds=['profiles','contexts','groups'].filter(k=>k in j);
+    const _kinds=['profiles','contexts','groups','info'].filter(k=>k in j);
     if(_kinds.length>1)throw new Error(`한 파일에 ${_kinds.join('·')}이(가) 함께 들어 있습니다. 프로필·맥락 카드·묶음 명단은 각각 따로 올려 주세요(아무것도 저장하지 않았습니다)`);
     if('contexts' in j){
       const c=j.contexts;
@@ -5599,6 +5607,16 @@ async function handleProfileFile(input){
       const bad=Object.keys(c).filter(k=>typeof c[k]!=='string');
       if(bad.length)throw new Error(`맥락 카드 값이 글(문자열)이 아닌 항목이 ${bad.length}건 있습니다(아무것도 저장하지 않았습니다)`);
       if(j.asof!=null&&typeof j.asof!=='string')throw new Error('asof(기준일)는 글이어야 합니다');
+    }
+    if('info' in j){
+      const c=j.info,KEYS=['gpa','toeic','age','school','note'];
+      if(!_isObj(c)||!Object.keys(c).length)throw new Error('인적사항 형식이 올바르지 않습니다(info는 이름→{gpa,toeic,age,school,note} 객체여야 합니다)');
+      const bad=Object.keys(c).filter(k=>!_isObj(c[k])||Object.keys(c[k]).some(x=>!KEYS.includes(x)||typeof c[k][x]!=='string'));
+      if(bad.length)throw new Error(`인적사항 값 형식이 맞지 않는 학생이 ${bad.length}명 있습니다(칸은 gpa·toeic·age·school·note, 값은 글이어야 합니다. 아무것도 저장하지 않았습니다)`);
+      if(j.asof!=null&&typeof j.asof!=='string')throw new Error('asof(기준일)는 글이어야 합니다');
+      await uploadInfo(c,j.asof||'');
+      alert(`인적사항 업로드 완료\n${Object.keys(c).length}명 (${j.asof||'날짜 없음'} 기준)`);
+      input.value=''; render(); return;
     }
     if(j.groups&&!j.profiles&&!j.contexts){
       const g=j.groups;
@@ -7432,7 +7450,7 @@ render=function(force){
       });
       return;
     }
-    const sc={};['rv-col-src','rv-col-sum','rv-col-ed','rv-queue'].forEach(id=>{const e=document.getElementById(id);if(e)sc[id]=e.scrollTop;});
+    const sc={};['rv-col-src','rv-col-sum','rv-col-ed','rv-queue','d6-info','d6-hm-scroll'].forEach(id=>{const e=document.getElementById(id);if(e)sc[id]=e.scrollTop;});
     _rvOrigRender();
     Object.keys(sc).forEach(id=>{const e=document.getElementById(id);if(e)e.scrollTop=sc[id];});
     if(R.focusSrc){const e=document.getElementById('rv-src-'+R.focusSrc.id);if(e&&R._focusDone!==R.focusSrc){e.scrollIntoView({block:'center'});R._focusDone=R.focusSrc;}}
@@ -7448,5 +7466,439 @@ setInterval(()=>{if(R.on&&R.key)rvActTick();},15000);
 
 </script>
 <!-- ▲ 주간 검토(베타) 스크립트 -->
+<!-- ▼ 선생님 대시보드 v6 (2026-11-17) -->
+<style>
+/* ══ 선생님 대시보드 v6 ══ */
+.rv.d6{max-width:1680px}
+.d6-layout{grid-template-columns:250px 1fr!important}
+.d6-left{position:sticky;top:8px;align-self:start;display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 16px)}
+.d6-left .rv-queue{position:static;max-height:none;overflow:auto;flex:1}
+.d6-qsearch input{width:100%;padding:9px 11px;border:1.5px solid #d2d2d7;border-radius:10px;font-size:13px;background:#fff}
+.d6-qsearch input:focus{border-color:#0a84ff;outline:none;box-shadow:0 0 0 3px rgba(10,132,255,.15)}
+.d6-qhead{font-size:11.5px;font-weight:700;color:#6e6e73;margin:2px 2px 6px;display:flex;justify-content:space-between;align-items:center}
+.d6-qgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.d6-qc{display:flex;align-items:center;gap:5px;padding:6px 7px;border:1px solid #e5e5ea;border-radius:8px;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;text-align:left;transition:transform .12s,box-shadow .12s}
+.d6-qc:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.d6-qc i,.d6-qlegend i{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#aeaeb2}
+.d6-qc span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d6-qc em{font-style:normal;font-size:10px}
+.d6-qc.cur{border-color:#0a84ff;background:#eaf3ff;box-shadow:0 0 0 2px rgba(10,132,255,.25)}
+.st-sub i{background:#ff9f0a}.st-wip i{background:#0a84ff}.st-re i{background:#bf5af2}.st-ok i{background:#34c759}
+.d6-qc.st-ok{opacity:.72}
+.d6-qlegend{display:flex;gap:8px;flex-wrap:wrap;font-size:10.5px;color:#86868b;margin:8px 2px 0}
+.d6-qlegend span{display:flex;align-items:center;gap:3px}
+.d6-miss{margin-top:8px;padding:7px 8px;background:#fff5f5;border:1px solid #fde0e0;border-radius:8px;font-size:11px}
+.d6-miss b{color:#c0392b}.d6-miss div{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.d6-miss span{background:#fff;border:1px solid #f5c6c6;border-radius:6px;padding:1px 6px;color:#a33}
+/* 제출 현황 */
+.d6-hm{background:#fff;border:1px solid #e5e5ea;border-radius:14px;padding:10px 12px;margin-bottom:10px}
+.d6-hm-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.d6-hm-toggle{background:none;border:none;font-size:13.5px;font-weight:700;cursor:pointer;padding:2px}
+.d6-kpis{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.d6-ring{position:relative;display:flex;align-items:center;gap:6px}
+.d6-ring svg{transform:rotate(-90deg)}
+.d6-ring-bg{fill:none;stroke:#f0f0f3;stroke-width:7}
+.d6-ring-fg{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .6s}
+.d6-ring-fg.anim{animation:d6ring 1.1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes d6ring{from{stroke-dashoffset:var(--c)}}
+.d6-ring-v{position:absolute;left:0;top:0;width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+.d6-ring-l{display:flex;flex-direction:column;font-size:11px;line-height:1.35}.d6-ring-l span{color:#86868b}
+.d6-kpi-warn{font-size:11px;max-width:300px}.d6-kpi-warn b{color:#c0392b}
+.d6-kpi-warn div{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.d6-kpi-warn span{background:#fff0f0;border:1px solid #f5c6c6;border-radius:6px;padding:1px 6px;cursor:pointer;color:#a33}
+.d6-hm-legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11px;color:#6e6e73;margin:8px 0 6px}
+.d6-hm-legend span{display:flex;align-items:center;gap:4px}
+.d6-hm-legend .d6-c{width:12px;height:12px;display:inline-block;animation:none}
+.d6-hm-scroll{overflow:auto;max-height:360px;border-top:1px solid #f0f0f3;padding-top:4px}
+.d6-hm-grid{display:flex;flex-direction:column;gap:2px;min-width:max-content}
+.d6-hm-row{display:grid;grid-template-columns:120px repeat(var(--n),16px) 86px;gap:2px;align-items:center}
+.d6-hm-row.warn .d6-hm-name{color:#c0392b}
+.d6-hm-name{font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;position:sticky;left:0;background:#fff;z-index:1;padding-right:4px}
+.d6-streak{font-size:9.5px;background:#ffe5e5;color:#c0392b;border-radius:5px;padding:0 4px;font-weight:700}
+.d6-hm-mon,.d6-hm-bars{position:sticky;background:#fff;z-index:2}
+.d6-hm-bars{top:0;height:30px}.d6-hm-mon{top:30px}
+.d6-hm-bar{height:28px;display:flex;align-items:flex-end;background:#f7f7f9;border-radius:3px;overflow:hidden}
+.d6-hm-bar i{display:block;width:100%;background:linear-gradient(#5e5ce6,#0a84ff);border-radius:3px 3px 0 0}
+.d6-hm-bar i.anim{animation:d6grow .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d);transform-origin:bottom}
+.d6-hm-bar.cur{outline:2px solid #ff9f0a;outline-offset:-1px}
+@keyframes d6grow{from{transform:scaleY(0)}}
+.d6-hm-wk{font-size:9px;color:#86868b;text-align:center;line-height:1.1;height:22px;display:flex;flex-direction:column;justify-content:flex-end}
+.d6-hm-wk{overflow:visible;white-space:nowrap}
+.d6-hm-wk b{color:#1d1d1f;font-size:9px;position:relative;left:0}
+.d6-hm-wk.cur{color:#ff9f0a;font-weight:800}
+.d6-hm-rate{font-size:10.5px;color:#6e6e73;display:flex;align-items:center;gap:4px;padding-left:4px}
+.d6-rbar{width:44px;height:6px;background:#f0f0f3;border-radius:3px;overflow:hidden;display:inline-block}
+.d6-rbar i{display:block;height:100%;background:#34c759}
+.d6-c{width:16px;height:16px;border-radius:4px;background:#f0f0f3}
+.d6-c.anim{animation:d6pop .45s cubic-bezier(.2,1.4,.4,1) both;animation-delay:var(--d)}
+@keyframes d6pop{from{transform:scale(0);opacity:0}}
+.d6-ok{background:#34c759}.d6-sub{background:#ffcc00}.d6-miss.d6-c,.d6-c.d6-miss{background:#ff6b6b}.d6-na{background:repeating-linear-gradient(45deg,#f2f2f4,#f2f2f4 3px,#e6e6ea 3px,#e6e6ea 6px)}
+.d6-c[onclick]{cursor:pointer}.d6-c[onclick]:hover{outline:2px solid #1d1d1f;outline-offset:-1px}
+.d6-c.cur{box-shadow:inset 0 0 0 2px rgba(255,159,10,.9)}
+.d6-c.sel{outline:2px solid #0a84ff;outline-offset:1px}
+/* 작업 영역 */
+.d6-work{display:grid;grid-template-columns:minmax(330px,.85fr) minmax(420px,1.15fr);gap:10px;align-items:start}
+.d6-info{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto}
+.d6-who{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}.d6-who b{font-size:16px}
+.d6-badge{font-size:10.5px;font-weight:700;background:#efeafe;color:#5e3bd1;border-radius:6px;padding:2px 7px}
+.d6-badge.b2{background:#e6f6ff;color:#0068a8}.d6-badge.b3{background:#eef7ee;color:#24702e}
+.d6-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px}
+.d6-chip{background:#f5f7fb;border:1px solid #e6ebf3;border-radius:9px;padding:6px 8px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.d6-chip.wide{grid-column:span 3}
+.d6-chip span{font-size:10px;color:#86868b;font-weight:600}
+.d6-chip b{font-size:13px;overflow-wrap:anywhere}.d6-chip b i{color:#aeaeb2;font-weight:500;font-size:11.5px}
+.d6-sec{border-top:1px solid #f0f0f3;padding:7px 0}
+.d6-sec>summary,.d6-sh{font-size:12.5px;font-weight:700;cursor:pointer;list-style:revert;margin-bottom:4px}
+.d6-sh{cursor:default}
+.d6-cs{font-size:12px;line-height:1.6;margin:5px 0;padding:6px 8px;background:#fafafa;border-radius:7px}
+.d6-cs b{color:#0059b3;font-size:11px}
+.d6-more>summary{font-size:11.5px;color:#0059b3;cursor:pointer;margin:4px 0}
+.d6-ex div{font-size:11.5px;line-height:1.6;color:#3a3a3c;padding:3px 0;border-bottom:1px dashed #eee}
+.d6-stabs{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 6px}
+.d6-stabs button{border:1px solid #d2d2d7;background:#fff;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer}
+.d6-stabs button.on{background:#1d1d1f;color:#fff;border-color:#1d1d1f}
+.d6-stabs small{font-size:9.5px;opacity:.7;font-weight:500}
+.d6-guide{background:#fffaf0;border:1px solid #f6e3b8;border-radius:9px;padding:7px 9px;margin-bottom:7px}
+.d6-gh{font-size:11px;font-weight:800;color:#a36a00;margin-bottom:3px}
+.d6-gi{font-size:11.5px;line-height:1.55;padding:2px 0}.d6-gi b{color:#7a4f00}
+.d6-tlwrap{border-left:2px solid #e5e5ea;margin-left:6px;padding-left:0;max-height:340px;overflow:auto}
+.d6-tl{display:grid;grid-template-columns:64px 1fr;gap:6px;font-size:11.5px;line-height:1.5;padding:4px 6px 4px 10px;position:relative}
+.d6-tl:before{content:'';position:absolute;left:-5px;top:9px;width:8px;height:8px;border-radius:50%;background:#34c759}
+.d6-tl.miss:before{background:#ff6b6b}.d6-tl.miss .d6-tt{color:#c0392b}
+.d6-tl.cur{background:#fff6e5;border-radius:6px}.d6-tl.cur:before{background:#ff9f0a}
+.d6-tw{color:#86868b;font-weight:700;white-space:nowrap}
+.d6-tt i{color:#aeaeb2}
+/* 자주 쓰는 표현 */
+.d6-rec{background:#f7f9ff;border:1px solid #dfe7fb;border-radius:11px;padding:8px 10px;margin-bottom:8px}
+.d6-rec-head{font-size:12.5px;font-weight:700;margin-bottom:6px}
+.d6-cats{display:flex;flex-wrap:wrap;gap:5px}
+.d6-cat{border:1px solid #c9d6f5;background:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 0 #c9d6f5;transition:transform .1s}
+.d6-cat:active{transform:translateY(1px);box-shadow:none}
+.d6-cat small{margin-left:4px;font-size:10px;color:#6e6e73}
+.d6-cat.on{background:#0a84ff;color:#fff;border-color:#0a84ff}.d6-cat.on small{color:#dbeaff}
+.d6-recs{display:flex;flex-direction:column;gap:4px;margin-top:7px;max-height:230px;overflow:auto}.d6-recs.anim{animation:d6fade .25s both}
+@keyframes d6fade{from{opacity:0;transform:translateY(-4px)}}
+.d6-recb{display:flex;gap:8px;align-items:flex-start;text-align:left;border:1px solid #e3e8f4;background:#fff;border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.5;cursor:pointer}
+.d6-recb:hover{border-color:#0a84ff;background:#f0f6ff}
+.d6-recb span{flex:1}.d6-recb small{font-size:10px;color:#86868b;white-space:nowrap}
+/* 서랍 */
+.d6-dbg{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:900}.d6-dbg.anim{animation:d6fade .2s both}
+.d6-drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,94vw);background:#f5f5f7;z-index:901;overflow:auto;padding:14px;box-shadow:-8px 0 30px rgba(0,0,0,.18)}.d6-drawer.anim{animation:d6slide .25s cubic-bezier(.2,.8,.2,1) both}
+@keyframes d6slide{from{transform:translateX(100%)}}
+.d6-dhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:15px}
+@media(max-width:1180px){
+  .d6-layout{grid-template-columns:1fr!important}
+  .d6-left{position:static;max-height:none}
+  .d6-left .rv-queue{max-height:260px}
+  .d6-work{grid-template-columns:1fr}
+  .d6-info{position:static;max-height:none}
+  .d6-qgrid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+}
+@media(prefers-reduced-motion:reduce){.d6 *{animation:none!important;transition:none!important}}
+</style>
+<script>let _INS_PARTS=null;</script>
+<script>
+// ══════════ 선생님 대시보드 v6 (2026-11-17) ══════════
+// 대표 요청: 자주 쓰는 것만 한 화면에, 안 쓰는 것은 정리.
+//  · 주간 검토 화면을 선생님 기본 화면으로 쓴다(별도 「열기」 없음).
+//  · 원문·요약/메모 탭은 쓰지 않아 화면에서 뺐다. 초안 작업만 남긴다.
+//  · API 키·상담 프로필·주차 잠금·학생 명단 등 관리 도구는 오른쪽 서랍으로 옮겼다.
+//  · 7월~현재 학생별 제출·누락 현황을 한눈에 보는 표(움직임 포함)를 위에 둔다.
+//  · 학생을 열면 인적사항·맥락 카드·7월 가이드·과목별 학습 기록을 편집기 옆에 띄운다.
+//  · 승인된 피드백에서 자주 쓴 문장을 골라 버튼 한 번으로 편집기에 넣는다.
+// 개인정보: 학생 데이터는 화면에만 그리고 소스·저장소에는 넣지 않는다.
+const D6={drawer:false,q:'',hmOpen:true,hmAnimAt:0,hmSort:'name',open:{card:true,guide:true,excerpt:false,cardAll:false},subj:'생물',phraseCat:null,phraseCache:null};
+try{ R.on=localStorage.getItem('_vf_dash6')!=='0'; }catch(e){ R.on=true; }
+const _d6Toggle=rvToggle;
+rvToggle=function(on){ try{localStorage.setItem('_vf_dash6',on?'1':'0');}catch(e){} _d6Toggle(on); };
+
+// ── 공통 ──
+const D6_SUBJ=[['생물','🧬'],['화학','⚗️'],['유기','🔬'],['생활관리','🌿']];
+function d6Sub(sd,s){ if(!sd)return null; return s==='유기'?(sd['유기']||sd['유기화학']||null):(sd[s]||null); }
+function d6Cut(t,n){ t=String(t||'').replace(/\s+/g,' ').trim(); return t.length>n?t.slice(0,n)+'…':t; }
+const D6_CHO='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+function d6Cho(s){ return [...String(s||'')].map(c=>{const k=c.charCodeAt(0)-0xAC00;return k>=0&&k<11172?D6_CHO[Math.floor(k/588)]:c;}).join(''); }
+function d6Match(name,q){ q=String(q||'').replace(/\s/g,''); if(!q)return true; name=String(name||''); return name.includes(q)||d6Cho(name).includes(q); }
+function d6Weeks(){
+  const cur=rvCurrentWeek(),end=rvWeekOrd(cur.m,cur.w),out=[];
+  MONTH_SEQ.forEach(m=>{for(let w=1;w<=WEEKS_PER_MONTH;w++){const o=rvWeekOrd(m,String(w));if(o<=end)out.push({m,w:String(w),o});}});
+  return out;
+}
+function d6Index(){   // 이름 → 주차 순번 → 제출
+  const ix={};
+  (S.subs||[]).forEach(s=>{const d=s.data;if(!d||!d.name||rvMonthIdx(String(d.month))<0)return;
+    const o=rvWeekOrd(String(d.month),String(d.week));(ix[d.name]=ix[d.name]||{})[o]=s;});
+  return ix;
+}
+function d6Names(){
+  const r=[...(S.roster||[])];
+  return r.sort((a,b)=>a.localeCompare(b,'ko'));
+}
+function d6CellState(name,wk,ix){
+  const s=(ix[name]||{})[wk.o];
+  if(s)return s.data.feedbackApproved&&String(s.data.generatedFeedback||'').trim()?['ok',s]:['sub',s];
+  if(typeof isSepStart==='function'&&isSepStart(name)&&(wk.m==='7'||wk.m==='8'))return ['na',null];
+  return ['miss',null];
+}
+async function d6OpenKey(key){
+  const it=rvSub(key);if(!it)return;
+  if(key!==R.key&&!rvConfirmLeave())return;
+  R.fm=String(it.data.month);R.fw=String(it.data.week);
+  if(R.fstat==='todo'&&rvStatus(it)[0]==='ok')R.fstat='all';
+  await rvOpen(key,true);
+  render();
+  const el=document.getElementById('rv-editor');if(el)el.scrollIntoView({block:'nearest'});
+}
+
+// ── 1. 상단: 제목·관리 도구 버튼 ──
+const _d6Top=rvTop;
+rvTop=function(){
+  return _d6Top()
+    .replace('<button class="rv-btn sm" onclick="rvToggle(false)">← 기존 화면</button>','<button class="rv-btn sm" onclick="D6.drawer=true;D6.drawerAt=Date.now();render()">⚙ 관리 도구</button>')
+    .replace('<b style="font-size:13px">🗂 주간 검토 <span class="rv-note">베타</span></b>','<b style="font-size:13.5px">📋 선생님 대시보드</b>');
+};
+
+// ── 2. 제출 현황 인포그래픽 ──
+function d6Ring(v,total,color,label,sub){
+  const p=total?Math.round(v/total*100):0, C=2*Math.PI*26;
+  const anim=Date.now()-D6.hmAnimAt<1500;
+  return `<div class="d6-ring"><svg viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="32" r="26" class="d6-ring-bg"/><circle cx="32" cy="32" r="26" class="d6-ring-fg${anim?' anim':''}" style="stroke:${color};stroke-dasharray:${C.toFixed(1)};stroke-dashoffset:${(C*(1-p/100)).toFixed(1)};--c:${C.toFixed(1)}"/></svg><div class="d6-ring-v">${p}%</div><div class="d6-ring-l"><b>${label}</b><span>${sub}</span></div></div>`;
+}
+function d6HeatHtml(){
+  const names=d6Names(),weeks=d6Weeks(),ix=d6Index(),cur=rvCurrentWeek(),curO=rvWeekOrd(cur.m,cur.w);
+  if(!names.length||!weeks.length)return '<div data-rv-region="hm"></div>';
+  if(!D6.hmAnimAt)D6.hmAnimAt=Date.now();
+  const anim=Date.now()-D6.hmAnimAt<1500;
+  // 집계
+  let exp=0,got=0;const rows=names.map(n=>{
+    const cells=weeks.map(w=>d6CellState(n,w,ix));
+    const e=cells.filter(c=>c[0]!=='na').length,g=cells.filter(c=>c[0]==='ok'||c[0]==='sub').length;
+    exp+=e;got+=g;
+    let streak=0;for(let i=cells.length-1;i>=0;i--){if(cells[i][0]==='miss')streak++;else if(cells[i][0]!=='na')break;}
+    return {n,cells,e,g,miss:e-g,streak};
+  });
+  const curIdx=weeks.findIndex(w=>w.o===curO);
+  const curSub=rows.filter(r=>['ok','sub'].includes(r.cells[curIdx][0])).length;
+  const curOk=rows.filter(r=>r.cells[curIdx][0]==='ok').length;
+  const curExp=rows.filter(r=>r.cells[curIdx][0]!=='na').length;
+  const warn=rows.filter(r=>r.streak>=2);
+  const sorted=D6.hmSort==='miss'?[...rows].sort((a,b)=>b.miss-a.miss||a.n.localeCompare(b.n,'ko')):rows;
+  const colCnt=weeks.map((w,i)=>rows.filter(r=>['ok','sub'].includes(r.cells[i][0])).length);
+  const colExp=weeks.map((w,i)=>rows.filter(r=>r.cells[i][0]!=='na').length);
+  const head=`<div class="d6-hm-row d6-hm-bars"><div class="d6-hm-name"></div>${weeks.map((w,i)=>{const p=colExp[i]?colCnt[i]/colExp[i]:0;return `<div class="d6-hm-bar${w.o===curO?' cur':''}" title="${w.m}월 ${w.w}주 제출 ${colCnt[i]}/${colExp[i]}"><i class="${anim?'anim':''}" style="height:${Math.round(p*100)}%;--d:${i*25}ms"></i></div>`;}).join('')}<div class="d6-hm-rate"></div></div>
+    <div class="d6-hm-row d6-hm-mon"><div class="d6-hm-name"></div>${weeks.map(w=>`<div class="d6-hm-wk${w.o===curO?' cur':''}">${w.w==='1'?`<b>${w.m}월</b>`:''}${w.w}</div>`).join('')}<div class="d6-hm-rate">제출률</div></div>`;
+  const body=sorted.map((r,ri)=>`<div class="d6-hm-row${r.streak>=2?' warn':''}"><div class="d6-hm-name" onclick="D6.q='${esc(r.n)}';render()" title="목록에서 찾기">${esc(r.n)}${r.streak>=2?` <span class="d6-streak">${r.streak}주 누락</span>`:''}</div>${r.cells.map((c,i)=>{const w=weeks[i];const t=`${r.n} · ${w.m}월 ${w.w}주 · ${{ok:'승인 완료',sub:'제출·미승인',miss:'미제출',na:'9월 시작반(해당 없음)'}[c[0]]}`;return `<div class="d6-c d6-${c[0]}${w.o===curO?' cur':''}${c[1]&&c[1].key===R.key?' sel':''}${anim?' anim':''}" style="--d:${Math.min(i*22+ri*5,900)}ms" title="${esc(t)}"${c[1]?` onclick="d6OpenKey('${esc(c[1].key)}')"`:''}></div>`;}).join('')}<div class="d6-hm-rate"><span class="d6-rbar"><i style="width:${r.e?Math.round(r.g/r.e*100):0}%"></i></span>${r.e?Math.round(r.g/r.e*100):0}%</div></div>`).join('');
+  return `<div class="d6-hm" data-rv-region="hm">
+    <div class="d6-hm-top">
+      <button class="d6-hm-toggle" onclick="D6.hmOpen=!D6.hmOpen;if(D6.hmOpen)D6.hmAnimAt=Date.now();render()">${D6.hmOpen?'▾':'▸'} 📊 제출 현황 <span class="rv-note">7월 1주 ~ ${cur.m}월 ${cur.w}주 · 명단 ${names.length}명</span></button>
+      <div class="d6-kpis">
+        ${d6Ring(curSub,curExp,'#0a84ff','이번 주 제출',`${curSub}/${curExp}명`)}
+        ${d6Ring(curOk,curSub,'#34c759','이번 주 승인',`${curOk}/${curSub}건`)}
+        ${d6Ring(got,exp,'#5e5ce6','누적 제출률',`${got}/${exp}회`)}
+        <div class="d6-kpi-warn"><b>연속 2주 이상 미제출 ${warn.length}명</b><div>${warn.length?warn.map(r=>`<span onclick="D6.q='${esc(r.n)}';render()">${esc(r.n)} ${r.streak}주</span>`).join(''):'<i>없음</i>'}</div></div>
+      </div>
+    </div>
+    ${D6.hmOpen?`<div class="d6-hm-legend"><span><i class="d6-c d6-ok"></i>승인 완료</span><span><i class="d6-c d6-sub"></i>제출·미승인</span><span><i class="d6-c d6-miss"></i>미제출</span><span><i class="d6-c d6-na"></i>해당 없음(9월 시작반)</span><span class="rv-note">칸을 누르면 그 주 제출을 엽니다</span><span style="flex:1"></span><button class="rv-btn sm" onclick="D6.hmSort=D6.hmSort==='name'?'miss':'name';render()">정렬: ${D6.hmSort==='name'?'이름순':'누락 많은 순'}</button></div>
+    <div class="d6-hm-scroll" id="d6-hm-scroll"><div class="d6-hm-grid" style="--n:${weeks.length}">${head}${body}</div></div>`:''}
+  </div>`;
+}
+
+// ── 3. 제출 목록: 검색·이름 칩 ──
+function d6SearchHtml(){
+  return `<div class="d6-qsearch" data-rv-region="qsearch"><input id="d6-q" value="${esc(D6.q)}" placeholder="🔎 이름 검색 (초성 가능: ㄱㅁㅅ)" oninput="D6.q=this.value;render()" onkeydown="if(event.key==='Enter'){d6OpenFirst()}else if(event.key==='Escape'){D6.q='';this.value='';render()}"></div>`;
+}
+function d6Filtered(){ return rvQueue().filter(s=>d6Match(s.data.name,D6.q)); }
+function d6OpenFirst(){ const f=d6Filtered()[0]; if(f)d6OpenKey(f.key); }
+rvQueueHtml=function(){
+  const q=d6Filtered();
+  const subNames=new Set(rvWeekItems().map(s=>s.data.name));
+  const miss=d6Names().filter(n=>!subNames.has(n)&&d6Match(n,D6.q)&&!(typeof isSepStart==='function'&&isSepStart(n)&&(String(R.fm)==='7'||String(R.fm)==='8')));
+  const chip=s=>{const st=rvStatus(s);const busy=R.busy['prep:'+s.key]||R.busy['draft:'+s.key];
+    return `<button class="d6-qc st-${st[0]}${s.key===R.key?' cur':''}" onclick="d6OpenKey('${esc(s.key)}')" title="${esc(st[1])}"><i></i><span>${esc(s.data.name)}</span>${busy?'<em>⏳</em>':''}${R.pending[s.key]?'<em>📩</em>':''}${rvDraftStale(s.key)||rvDataStale(s.key)?'<em title="초안·자료 갱신 필요">⚠️</em>':''}</button>`;};
+  return `<div class="rv-queue d6-queue" data-rv-region="queue" id="rv-queue">
+    <div class="d6-qhead">${R.fm}월 ${R.fw}주 · ${q.length}명${D6.q?` <button class="rv-btn sm" onclick="D6.q='';render()">검색 지우기</button>`:''}</div>
+    ${q.length?`<div class="d6-qgrid">${q.map(chip).join('')}</div>`:`<div class="rv-note" style="padding:8px">${rvWeekItems().length?'조건에 맞는 학생이 없습니다.':'이 주차에 제출이 없습니다.'}</div>`}
+    <div class="d6-qlegend"><span class="st-sub"><i></i>제출</span><span class="st-wip"><i></i>검토 중</span><span class="st-re"><i></i>재승인</span><span class="st-ok"><i></i>승인</span></div>
+    ${miss.length?`<div class="d6-miss"><b>미제출 ${miss.length}명</b><div>${miss.map(n=>`<span>${esc(n)}</span>`).join('')}</div></div>`:''}
+  </div>`;
+};
+
+// ── 4. 학생 정보 패널 ──
+function d6Det(k,label,inner,extra){
+  return `<details class="d6-sec" ${D6.open[k]?'open':''} ontoggle="D6.open['${k}']=this.open"><summary>${label}${extra||''}</summary>${inner}</details>`;
+}
+function d6CardSections(card){
+  const out=[];const re=/\[([가-힣]{2,4})\]/g;let m,last=null;
+  while((m=re.exec(card))){ if(last)out.push([last.k,card.slice(last.e,m.index).trim()]); last={k:m[1],e:re.lastIndex}; }
+  if(last)out.push([last.k,card.slice(last.e).trim()]);
+  return out;
+}
+function d6Guide(prof){
+  const G={생물:[],화학:[],유기:[],생활관리:[],기타:[]};
+  String(prof||'').split('\n').map(l=>l.trim()).filter(l=>/^[-•]/.test(l)&&l.includes(':')).forEach(l=>{
+    const t=l.replace(/^[-•]\s*/,'');
+    if(/인적사항|기본 정보|에니어그램|애니어그램|등록 테스트/.test(t.split(':')[0]))return;
+    const k=/유기|스미스|입체화학|반응/.test(t)?'유기':/화학|2000제|1500제|APS|전공화학/.test(t)?'화학':/생물|캠벨|식생분진|생화학|유전|분자/.test(t)?'생물':/수면|운동|식사|비타민|루틴|명상|취침|러닝|컨디션|일지/.test(t)?'생활관리':'기타';
+    G[k].push(t);
+  });
+  return G;
+}
+function d6Excerpt(prof){
+  return String(prof||'').split('\n').map(l=>l.trim()).filter(l=>/인적사항|기본 정보|GPA|토익|텝스|\d{2}세|\d{4}년생|졸업|재학/.test(l)).slice(0,4);
+}
+function d6InfoHtml(d){
+  const name=d.name,info=(typeof STUDENT_INFO!=='undefined'&&STUDENT_INFO[name])||null;
+  const prof=STUDENT_PROFILE[name]||'',card=(STUDENT_CONTEXT||{})[name]||'';
+  const v=x=>x&&x!=='확인 못함'?esc(x):'<i>확인 못함</i>';
+  const trait=(S.studentInfo[name]||{}).trait||STUDENT_ENNEAGRAM[name]||'';
+  const school=(S.studentInfo[name]||{}).school||'';
+  const badges=[trait?`<span class="d6-badge">${esc(trait)}</span>`:'',(typeof isSepStart==='function'&&isSepStart(name))?'<span class="d6-badge b2">9월 시작반</span>':'',school?`<span class="d6-badge b3">주력 ${esc(school)}</span>`:''].join('');
+  const chips=`<div class="d6-chips">
+    <div class="d6-chip"><span>GPA</span><b>${v(info&&info.gpa)}</b></div>
+    <div class="d6-chip"><span>토익</span><b>${v(info&&info.toeic)}</b></div>
+    <div class="d6-chip"><span>나이</span><b>${v(info&&info.age)}</b></div>
+    <div class="d6-chip wide"><span>전적대</span><b>${v(info&&info.school)}</b></div>
+    ${info&&info.note?`<div class="d6-chip wide"><span>메모</span><b>${esc(info.note)}</b></div>`:''}
+  </div>`;
+  const ex=d6Excerpt(prof);
+  const exHtml=ex.length?d6Det('excerpt',`📄 프로필 원문 발췌 <span class="rv-note">${info?'':'(인적사항 표가 아직 없어 원문을 보여 드립니다)'}</span>`,`<div class="d6-ex">${ex.map(l=>`<div>${esc(d6Cut(l,220))}</div>`).join('')}</div>`):'';
+  if(!info&&ex.length)D6.open.excerpt=D6.open.excerpt||false;
+  // 맥락 카드
+  const secs=d6CardSections(card);
+  const main=secs.filter(([k])=>k==='지시'||k==='최근'),rest=secs.filter(([k])=>k!=='지시'&&k!=='최근');
+  const secHtml=a=>a.map(([k,t])=>`<div class="d6-cs"><b>[${esc(k)}]</b><div>${esc(t).replace(/\n/g,'<br>')}</div></div>`).join('');
+  const cardHtml=card?d6Det('card',`📇 맥락 카드 <span class="rv-note">${STUDENT_CONTEXT_AT?esc(STUDENT_CONTEXT_AT)+' 기준':''} · 지시·최근</span>`,
+      secHtml(main)+(rest.length?`<details class="d6-more" ${D6.open.cardAll?'open':''} ontoggle="D6.open.cardAll=this.open"><summary>목표·경향·약점·말투 등 ${rest.length}칸 더 보기</summary>${secHtml(rest)}</details>`:''))
+    :`<div class="d6-sec"><div class="rv-note" style="padding:6px 2px">${Object.keys(STUDENT_CONTEXT||{}).length?'<b style="color:#c45400">맥락 카드 없음(이름 확인)</b>':'맥락 카드가 아직 올라와 있지 않습니다.'}</div></div>`;
+  // 과목별 학습 진행
+  const G=d6Guide(prof),weeks=d6Weeks(),ix=(d6Index()[name])||{},openO=rvWeekOrd(String(d.month),String(d.week));
+  const subjTabs=D6_SUBJ.map(([s,ic])=>`<button class="${D6.subj===s?'on':''}" onclick="D6.subj='${s}';render()">${ic} ${s}${G[s].length?` <small>가이드 ${G[s].length}</small>`:''}</button>`).join('');
+  const s=D6.subj;
+  const guide=G[s].length?`<div class="d6-guide"><div class="d6-gh">7월 시작 전 가이드</div>${G[s].map(t=>{const [a,...b]=t.split(':');return `<div class="d6-gi"><b>${esc(a)}</b>${b.length?` — ${esc(d6Cut(b.join(':'),200))}`:''}</div>`;}).join('')}</div>`:`<div class="rv-note" style="margin:4px 0 8px">7월 프로필에 ${s} 가이드 항목이 따로 없습니다.</div>`;
+  const tl=[...weeks].reverse().filter(w=>!(typeof isSepStart==='function'&&isSepStart(name)&&(w.m==='7'||w.m==='8'))).map(w=>{
+    const sub=ix[w.o];const sd=sub?d6Sub(sub.data.subjects,s):null;
+    let txt='';
+    if(sd)txt=s==='생활관리'?[sd.good?'잘한 점: '+sd.good:'',sd.improve?'보완: '+sd.improve:''].filter(Boolean).join(' / '):(sd.study||'');
+    const cls=w.o===openO?' cur':'';
+    if(!sub)return `<div class="d6-tl miss${cls}"><span class="d6-tw">${w.m}월 ${w.w}주</span><span class="d6-tt">미제출</span></div>`;
+    return `<div class="d6-tl${cls}"><span class="d6-tw">${w.m}월 ${w.w}주</span><span class="d6-tt" title="${esc(txt)}">${txt?esc(d6Cut(txt,260)):'<i>이 과목 기록 없음</i>'}</span></div>`;
+  }).join('');
+  const prog=`<div class="d6-sec"><div class="d6-sh">📈 과목별 학습 진행 <span class="rv-note">7월 가이드 → 주차별 학습 내용(최신 순)</span></div><div class="d6-stabs">${subjTabs}</div>${guide}<div class="d6-tlwrap">${tl}</div></div>`;
+  return `<div class="rv-col d6-info" id="d6-info" data-rv-region="info">
+    <div class="d6-who"><b>${esc(name)}</b>${badges}</div>
+    ${chips}${exHtml}${cardHtml}${prog}
+  </div>`;
+}
+
+// ── 5. 자주 쓰는 표현 → 추천 문장 ──
+const D6_CATS=[
+  ['praise','👏','칭찬·인정',/훌륭|잘하셨|잘 하셨|좋습니다|대단|칭찬|멋지|최고예요|인정/],
+  ['sleep','😴','수면·컨디션',/수면|잠|취침|기상|컨디션|피로|피곤|식곤/],
+  ['exercise','🏃','운동',/운동|러닝|걷기|산책|스트레칭|헬스/],
+  ['review','🔁','회독·복습',/회독|복습|오답|반복|암기/],
+  ['test','📝','시험·실전',/TEST|모의고사|실전|시간 배분|타임어택|시험장/i],
+  ['mind','🧘','멘탈·불안',/불안|조급|걱정|멘탈|흔들|스트레스|자책/],
+  ['plan','🗓','계획·방향',/다음 ?주|우선순위|방향|계획|일정/],
+  ['close','🙌','마무리',/화이팅|파이팅|응원|지금처럼|이어가|믿고|:\)/]
+];
+function d6PhraseBank(){
+  const ap=(S.subs||[]).filter(s=>s.data&&s.data.feedbackApproved&&s.data.generatedFeedback);
+  const sig=ap.length+'|'+(S.subs||[]).length;
+  if(D6.phraseCache&&D6.phraseCache.sig===sig)return D6.phraseCache.bank;
+  const names=[...new Set([...(S.roster||[]),...(S.subs||[]).map(s=>s.data&&s.data.name)].filter(n=>n&&n.length>=2))];
+  const map=new Map();
+  ap.forEach(s=>{
+    const o=rvWeekOrd(String(s.data.month),String(s.data.week));
+    _sents(s.data.generatedFeedback).forEach(t=>{
+      if(/\d/.test(t)||t.length>150||t.includes(RV_DECISION_MARK))return;
+      if(names.some(n=>t.includes(n)))return;
+      const k=_key(t);const g=map.get(k);
+      if(g){g.st.add(s.data.name);if(o>=g.o){g.o=o;g.text=t;}}
+      else map.set(k,{text:t,st:new Set([s.data.name]),o});
+    });
+  });
+  const groups=[...map.values()].filter(g=>g.st.size>=2).sort((a,b)=>b.st.size-a.st.size||b.o-a.o);
+  const bank={};
+  D6_CATS.forEach(([k,,,rx])=>{bank[k]=groups.filter(g=>rx.test(g.text)).slice(0,10).map(g=>({text:g.text,n:g.st.size}));});
+  D6.phraseCache={sig,bank};
+  return bank;
+}
+function d6PhraseRecHtml(){
+  const bank=d6PhraseBank();
+  const cat=D6.phraseCat,list=cat?(bank[cat]||[]):[];
+  return `<div class="d6-rec" data-rv-region="phraserec">
+    <div class="d6-rec-head">💬 자주 쓰는 표현 <span class="rv-note">승인된 피드백에서 2명 이상에게 쓴 문장 · 누르면 커서 자리에 들어갑니다</span></div>
+    <div class="d6-cats">${D6_CATS.map(([k,ic,lab])=>`<button class="d6-cat${cat===k?' on':''}" onmousedown="event.preventDefault()" onclick="D6.phraseCat=D6.phraseCat==='${k}'?null:'${k}';D6.catAt=Date.now();render()">${ic} ${lab}<small>${(bank[k]||[]).length}</small></button>`).join('')}</div>
+    ${cat?(list.length?`<div class="d6-recs${Date.now()-(D6.catAt||0)<400?' anim':''}">${list.map((x,i)=>`<button class="d6-recb" onmousedown="event.preventDefault()" onclick="d6Insert('${cat}',${i})"><span>${esc(x.text)}</span><small>${x.n}명</small></button>`).join('')}</div>`:'<div class="rv-note" style="margin-top:6px">이 분류에서 2명 이상에게 쓴 문장이 아직 없습니다.</div>'):''}
+  </div>`;
+}
+function d6Insert(cat,i){
+  const x=((d6PhraseBank()[cat])||[])[i];if(!x)return;
+  const el=document.getElementById('rv-editor');if(!el)return;
+  const v=el.value,a=el.selectionStart!=null?el.selectionStart:v.length,b=el.selectionEnd!=null?el.selectionEnd:a;
+  const pre=v.slice(0,a),post=v.slice(b);
+  const sep=pre&&!/[\s\n]$/.test(pre)?' ':'';
+  const ins=sep+x.text+(post&&!/^[\s\n]/.test(post)?' ':'');
+  R.undo.push(R.editor);
+  el.value=pre+ins+post;
+  const c=(pre+ins).length;el.focus();el.setSelectionRange(c,c);
+  rvOnInput(el);
+}
+const _d6ColEd=rvColEd;
+rvColEd=function(){
+  return _d6ColEd().replace('<div data-rv-region="edhead">',d6PhraseRecHtml()+'<div data-rv-region="edhead">');
+};
+
+// ── 6. 관리 도구 서랍 ──
+function d6DrawerHtml(){
+  if(!D6.drawer)return '<div data-rv-region="drawer"></div>';
+  try{_rvOrigBuildInstructor();}catch(e){}
+  const P=(typeof _INS_PARTS!=='undefined'&&_INS_PARTS)||{};
+  const raw=(S._rawSubs||[]).filter(s=>s.data.originalFeedback||('teacherNote' in s.data)).length;
+  return `<div data-rv-region="drawer"><div class="d6-dbg${Date.now()-(D6.drawerAt||0)<500?' anim':''}" onclick="D6.drawer=false;render()"></div><aside class="d6-drawer${Date.now()-(D6.drawerAt||0)<500?' anim':''}">
+    <div class="d6-dhead"><b>⚙ 관리 도구</b><button class="rv-btn sm" onclick="D6.drawer=false;render()">닫기 ✕</button></div>
+    ${raw?`<div class="card" style="border-color:#f3c9a1;background:#fff8f0"><b style="font-size:12px;color:#c45400">🔐 학생 문서 ${raw}건에 선생님용 내용이 남아 있습니다</b><div style="margin-top:6px"><button class="btn-blue btn-sm" onclick="migrateAiOriginals()">비공개로 옮기기</button></div></div>`:''}
+    ${P.api||''}${P.profile||''}${P.lock||''}${P.roster||''}${mtFolderCard()}${P.learn||''}${styleCardHtml()}
+    <div class="card"><div class="card-head">기타</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-ghost btn-sm" onclick="downloadExcel()">📥 엑셀 다운로드</button><button class="btn-ghost btn-sm" onclick="D6.drawer=false;rvToggle(false)">예전 화면으로 보기</button></div></div>
+  </aside></div>`;
+}
+
+// ── 7. 화면 조립 ──
+buildReview=function(){
+  rvStartStore();rvEnsureFilter();
+  const msg=R.msg?`<div class="rv-msg ${R.msg.type}">${esc(R.msg.text)} ${R.msg.retry?`<button class="rv-btn sm" onclick="${R.msg.retry}">${esc(R.msg.retryLabel||'다시 시도')}</button>`:''} <button class="rv-btn sm" onclick="R.msg=null;render()">닫기</button></div>`:'';
+  let main='';
+  const it=R.key?rvSub(R.key):null;
+  if(R.key&&!it){main=`<div class="rv-head"><div class="rv-msg err">열려 있던 제출(${esc(R.key)})을 찾을 수 없습니다. 삭제되었거나 월/주차가 바뀌었습니다. ${rvDirty()?'편집 중이던 내용은 이 브라우저에 백업했습니다.':''}</div></div>`;rvLocalBackup();}
+  else if(!it){
+    const first=rvNeighbor(1,true);
+    main=`<div class="rv-head" style="text-align:center;padding:34px 14px"><div style="font-size:15px;font-weight:700;margin-bottom:6px">왼쪽 이름이나 위 표의 칸을 누르면 학생이 열립니다</div>${first?`<button class="rv-btn pri" onclick="d6OpenKey('${esc(first)}')">첫 미승인 학생 열기</button>`:'<div class="rv-note">이 주차에 미승인 제출이 없습니다.</div>'}</div>`;
+  }else{
+    const keepNote=(S.sel&&S.sel.key===it.key)?S.sel.data.teacherNote:it.data.teacherNote;
+    S.sel={key:it.key,data:{...it.data,teacherNote:keepNote}};
+    const d=it.data;const st=rvStatus(it);
+    const resub=rvStudentSig(d)!==R.subSig[it.key];
+    if(!R.checks[it.key])rvRunChecks();
+    R.tab='ed';
+    const q=rvQueue();const qi=q.findIndex(s=>s.key===it.key);
+    main=`<div class="rv-head" data-rv-region="head">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div><b style="font-size:15px">${esc(d.name)}</b> · ${d.month}월 ${d.week}주차 ${rvPill(st)}</div>
+        <div style="display:flex;gap:5px;align-items:center"><span class="rv-note">${qi>=0?(qi+1)+'/'+q.length:''}</span>
+          <button class="rv-btn sm" onclick="rvGo(-1)">← 이전</button><button class="rv-btn sm" onclick="rvGo(1)">다음 →</button></div>
+      </div>
+      ${resub?`<div class="rv-msg err" style="margin-top:6px">학생이 이 화면을 연 뒤 원문을 다시 제출했습니다. AI 초안은 예전 원문 기준일 수 있습니다. <button class="rv-btn sm" onclick="rvAckResubmit()">확인했음</button></div>`:''}
+    </div>
+    <div class="d6-work">${d6InfoHtml(d)}${rvColEd()}</div>`;
+  }
+  return `<div class="rv d6">${rvTop()}<div data-rv-region="msg">${msg}</div>${d6HeatHtml()}<div class="rv-layout d6-layout"><div class="d6-left">${d6SearchHtml()}${rvQueueHtml()}</div><div class="rv-main">${main}</div></div>${d6DrawerHtml()}${rvModalHtml()||'<div data-rv-region="modal"></div>'}</div>`;
+};
+document.addEventListener('keydown',e=>{
+  if(!rvReviewActive())return;
+  if(e.key==='Escape'&&D6.drawer){D6.drawer=false;render();}
+  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const el=document.getElementById('d6-q');if(el){el.focus();el.select();}}
+});
+</script>
+<!-- ▲ 선생님 대시보드 v6 -->
 </body>
 </html>
